@@ -151,6 +151,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Game.Networking::ArtDock.Networking.NetworkContext
   worldPrefab: {fileID: 458813615731548543, guid: cdb9b607fc2a2db4e871a9e3efd8dd15, type: 3}
+  itemPrefab: {fileID: 7201340403074264783, guid: c45ddd1fd67bfd844afe92a31b91f923, type: 3}
 --- !u!114 &502467482
 MonoBehaviour:
   m_ObjectHideFlags: 0

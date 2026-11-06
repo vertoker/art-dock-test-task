@@ -15,12 +15,12 @@ namespace ArtDock.Tests
         {
             var accepted = new Vector3(1, 0, 1);
             var state = new PlayerValidation(settings, accepted);
-            Assert.That(state.TryMove(accepted + Vector3.right * 100, .1f), Is.False);
+            Assert.That(state.TryMove(accepted + Vector3.right * 100, 0.1f), Is.False);
             Assert.That(state.TrustedPosition, Is.EqualTo(accepted));
             Assert.That(state.PositionValid, Is.False);
-            Assert.That(state.TryMove(accepted, .1f), Is.True);
+            Assert.That(state.TryMove(accepted, 0.1f), Is.True);
             Assert.That(state.PositionValid, Is.True);
-            Assert.That(state.TryMove(new Vector3(float.NaN, 0, 0), .1f), Is.False);
+            Assert.That(state.TryMove(new Vector3(float.NaN, 0, 0), 0.1f), Is.False);
             Assert.That(state.TrustedPosition, Is.EqualTo(accepted));
         }
 

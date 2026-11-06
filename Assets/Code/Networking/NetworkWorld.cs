@@ -35,6 +35,16 @@ namespace ArtDock.Networking
         }
 
         private void Awake() => Players = new NetworkList<SessionPlayer>();
+
+        public bool IsReady(ulong client)
+        {
+            if (Phase.Value != SessionPhase.Playing) return false;
+
+            for (var i = 0; i < Players.Count; i++)
+                if (Players[i].ClientId == client) return Players[i].IsLoaded;
+
+            return false;
+        }
         internal void Initialize(int capacity) => initialCapacity = capacity;
 
         public override void OnNetworkSpawn()

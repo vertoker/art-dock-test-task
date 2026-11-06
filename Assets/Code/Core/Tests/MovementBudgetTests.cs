@@ -8,19 +8,19 @@ namespace ArtDock.Tests
         [Test]
         public void ToleranceIsNotGrantedAgainForEverySnapshot()
         {
-            var budget = new MovementBudget(1, 5, .5f);
+            var budget = new MovementBudget(1, 5, 0.5f);
             Assert.That(budget.TryConsume(1, 0), Is.True);
-            Assert.That(budget.TryConsume(.2f, .01f), Is.False);
-            Assert.That(budget.TryConsume(.5f, .09f), Is.True);
+            Assert.That(budget.TryConsume(0.2f, 0.01f), Is.False);
+            Assert.That(budget.TryConsume(0.5f, 0.09f), Is.True);
         }
 
         [Test]
         public void IdleTimeCannotAccumulateAnUnlimitedTeleport()
         {
-            var budget = new MovementBudget(1, 5, .5f);
+            var budget = new MovementBudget(1, 5, 0.5f);
             Assert.That(budget.TryConsume(4, 100), Is.False);
             Assert.That(budget.TryConsume(3.5f, 0), Is.True);
-            Assert.That(budget.TryConsume(.1f, 0), Is.False);
+            Assert.That(budget.TryConsume(0.1f, 0), Is.False);
         }
 
         [TestCase(float.NaN, 1)]
@@ -31,16 +31,16 @@ namespace ArtDock.Tests
         [TestCase(1, -1)]
         public void InvalidSamplesDoNotChangeTheBudget(float distance, float elapsed)
         {
-            var budget = new MovementBudget(1, 5, .5f);
+            var budget = new MovementBudget(1, 5, 0.5f);
             Assert.That(budget.TryConsume(distance, elapsed), Is.False);
             Assert.That(budget.TryConsume(1, 0), Is.True);
-            Assert.That(budget.TryConsume(.1f, 0), Is.False);
+            Assert.That(budget.TryConsume(0.1f, 0), Is.False);
         }
 
         [Test]
         public void ResetRestoresOnlyTheInitialTolerance()
         {
-            var budget = new MovementBudget(1, 5, .5f);
+            var budget = new MovementBudget(1, 5, 0.5f);
             Assert.That(budget.TryConsume(1, 0), Is.True);
             budget.Reset();
             Assert.That(budget.TryConsume(1.1f, 0), Is.False);

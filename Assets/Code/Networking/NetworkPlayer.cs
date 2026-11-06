@@ -20,12 +20,18 @@ namespace ArtDock.Networking
         private float nextCorrection;
         private float nextRespawn;
         private bool localActive;
+        private PlayerInteraction interaction;
+        private float nextItemAction;
+        private float nextSpawn;
+        internal NetworkContext Context => context;
+        public NetworkItem HeldItem => context ? context.HeldItemFor(OwnerClientId) : null;
 
         public Camera ViewCamera => viewCamera;
         public Vector3 TrustedPosition => validation.TrustedPosition;
         public Vector3 AimDirection => validation.AimDirection;
         public bool PositionValid => validation.PositionValid;
-        public bool CanAct => IsSpawned && IsServer && Playing && PositionValid;
+        public bool CanAct => IsSpawned && IsServer && Playing && PositionValid && !networkTransform.HasInvalidState &&
+                              context.Session.State == SessionState.Connected && !context.Session.Loading && context.World.IsReady(OwnerClientId);
         private bool Playing => context.World && context.World.Phase.Value == SessionPhase.Playing;
 
         public override void OnNetworkSpawn()
@@ -36,6 +42,9 @@ namespace ArtDock.Networking
             
             validation = new PlayerValidation(context.Settings, transform.position);
             localControl = new LocalPlayerController(this, controller, context.Settings);
+            interaction = new PlayerInteraction(this);
+
+            context.RegisterPlayer(this);
             viewCamera.transform.localPosition = Vector3.up * context.Settings.Player.EyeHeight;
             
             SetPresentation(false);
@@ -44,6 +53,7 @@ namespace ArtDock.Networking
         private void Update()
         {
             if (!IsSpawned) return;
+
             var active = Playing && context.Session.State == SessionState.Connected && !context.Session.Loading;
             SetPresentation(active);
             
@@ -70,10 +80,14 @@ namespace ArtDock.Networking
         {
             var keyboard = Keyboard.current;
             var mouse = Mouse.current;
+            var wasLocked = Cursor.lockState == CursorLockMode.Locked;
+
             if (keyboard != null && keyboard.escapeKey.wasPressedThisFrame) SetCursor(false);
             else if (Application.isFocused && mouse != null && mouse.leftButton.wasPressedThisFrame) SetCursor(true);
             
-            localControl.Tick(Application.isFocused && Cursor.lockState == CursorLockMode.Locked);
+            var acceptInput = Application.isFocused && Cursor.lockState == CursorLockMode.Locked;
+            localControl.Tick(acceptInput);
+            if (acceptInput && wasLocked && keyboard != null && mouse != null) interaction.Tick(keyboard, mouse);
         }
 
         private void UpdateServerPosition()
@@ -84,17 +98,20 @@ namespace ArtDock.Networking
                 CorrectPosition();
                 return;
             }
+
             if (PlayerValidation.OutsideBounds(transform.position, context.Settings))
             {
                 Respawn();
                 return;
             }
+
             if (!validation.TryMove(transform.position, Time.unscaledDeltaTime)) CorrectPosition();
         }
 
         private void CorrectPosition()
         {
             if (Time.unscaledTime < nextCorrection) return;
+
             nextCorrection = Time.unscaledTime + context.Settings.Player.CorrectionInterval;
             MoveOwner(validation.TrustedPosition);
         }
@@ -104,7 +121,9 @@ namespace ArtDock.Networking
             if (Time.unscaledTime < nextRespawn) return;
             
             nextRespawn = Time.unscaledTime + context.Settings.Player.RespawnCooldown;
+            HeldItem?.ReleaseDisconnected(OwnerClientId);
             var position = context.SpawnPositionFor(OwnerClientId);
+
             validation.Reset(position);
             MoveOwner(position);
         }
@@ -131,10 +150,33 @@ namespace ArtDock.Networking
 
         internal void UpdateAim(Vector3 direction) => AimRpc(direction);
 
+        public bool TryConsumeItemAction()
+        {
+            if (!CanAct || Time.unscaledTime < nextItemAction) return false;
+
+            nextItemAction = Time.unscaledTime + context.Settings.Items.ActionCooldown;
+            return true;
+        }
+
+        public void RequestSpawn()
+        {
+            if (IsOwner) SpawnItemRpc();
+        }
+
+        [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
+        private void SpawnItemRpc(RpcParams rpc = default)
+        {
+            if (rpc.Receive.SenderClientId != OwnerClientId || !CanAct || Time.unscaledTime < nextSpawn) return;
+
+            nextSpawn = Time.unscaledTime + context.Settings.Items.SpawnCooldown;
+            ItemSpawner.TrySpawnForPlayer(this);
+        }
+
         [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner, Delivery = RpcDelivery.Unreliable)]
         private void AimRpc(Vector3 direction)
         {
             if (!CanAct || !validation.TryAim(direction, Time.unscaledTime)) return;
+
             ReplicatedAim.Value = validation.AimDirection;
         }
 
@@ -152,8 +194,12 @@ namespace ArtDock.Networking
 
         public override void OnNetworkDespawn()
         {
+            HeldItem?.ReleaseDisconnected(OwnerClientId);
+            context.UnregisterPlayer(this);
+
             SetPresentation(false);
             if (IsOwner) SetCursor(false);
+
             context = null;
         }
     }
