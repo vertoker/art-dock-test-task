@@ -343,6 +343,7 @@ MonoBehaviour:
   manager: {fileID: 502467483}
   context: {fileID: 502467481}
   view: {fileID: 695958106}
+  textSettings: {fileID: 11400000, guid: 2d38b6c8f00b4c3e9d4a8047901dbdd9, type: 2}
 --- !u!4 &906462514
 Transform:
   m_ObjectHideFlags: 0

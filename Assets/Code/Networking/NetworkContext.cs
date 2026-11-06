@@ -5,6 +5,18 @@ using UnityEngine;
 
 namespace ArtDock.Networking
 {
+    public interface IWorldButton
+    {
+        int Id { get; }
+        string Prompt { get; }
+        void Use(NetworkPlayer player);
+    }
+
+    public interface IWorldResetZone
+    {
+        bool Contains(Vector3 position);
+    }
+
     public class NetworkContext : MonoBehaviour
     {
         [SerializeField] private NetworkWorld worldPrefab;
@@ -14,6 +26,8 @@ namespace ArtDock.Networking
         private readonly Dictionary<ulong, NetworkPlayer> players = new();
         private readonly Dictionary<ulong, NetworkItem> items = new();
         private readonly Dictionary<ulong, NetworkItem> heldItems = new();
+        private readonly Dictionary<int, IWorldButton> buttons = new();
+        private readonly List<IWorldResetZone> resetZones = new();
         internal ItemClaims Claims { get; } = new();
         public IReadOnlyDictionary<ulong, NetworkPlayer> Players => players;
         public IReadOnlyDictionary<ulong, NetworkItem> Items => items;
@@ -23,9 +37,33 @@ namespace ArtDock.Networking
         public GameSettings Settings { get; private set; }
         public SessionService Session { get; private set; }
         public NetworkWorld World { get; private set; }
+        public IPlayerStatistics Statistics { get; set; }
+        public IGameText Text { get; set; }
+        public bool InputBlocked { get; set; }
         public event Action WorldChanged;
 
         internal void RegisterPlayer(NetworkPlayer player) => players.Add(player.OwnerClientId, player);
+
+        public void RegisterButton(IWorldButton button) => buttons.Add(button.Id, button);
+        public void UnregisterButton(IWorldButton button)
+        {
+            if (buttons.TryGetValue(button.Id, out var current) && current == button) buttons.Remove(button.Id);
+        }
+
+        internal void UseButton(int id, NetworkPlayer player)
+        {
+            if (buttons.TryGetValue(id, out var button)) button.Use(player);
+        }
+
+        public void RegisterResetZone(IWorldResetZone zone) => resetZones.Add(zone);
+        public void UnregisterResetZone(IWorldResetZone zone) => resetZones.Remove(zone);
+        internal bool InResetZone(Vector3 position)
+        {
+            foreach (var zone in resetZones)
+                if (zone.Contains(position)) return true;
+
+            return false;
+        }
 
         internal void UnregisterPlayer(NetworkPlayer player)
         {

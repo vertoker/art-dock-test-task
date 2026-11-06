@@ -11,6 +11,16 @@ namespace ArtDock.Networking
         
         public event Action<ConnectionMode, string> JoinRequested;
         public event Action<ConnectionMode, string> ConnectionLost;
+        public bool OverlayOpen
+        {
+            get
+            {
+                foreach (var platform in platforms.Values)
+                    if (platform is IOverlayPlatform overlay && overlay.OverlayOpen) return true;
+
+                return false;
+            }
+        }
 
         public PlatformService(IEnumerable<IConnectionPlatform> platforms)
         {

@@ -1,6 +1,7 @@
+using ArtDock.Core;
 using Unity.Netcode;
-using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine;
 
 namespace ArtDock.Networking
 {
@@ -11,6 +12,7 @@ namespace ArtDock.Networking
         [SerializeField] private Renderer bodyRenderer;
         [SerializeField] private CapsuleCollider remoteCollider;
         public readonly NetworkVariable<Vector3> ReplicatedAim = new(Vector3.forward);
+        public readonly NetworkVariable<byte> ColorIndex = new();
         
         private NetworkContext context;
         private CharacterController controller;
@@ -23,8 +25,14 @@ namespace ArtDock.Networking
         private PlayerInteraction interaction;
         private float nextItemAction;
         private float nextSpawn;
+        private float nextColor;
+        private static readonly int BaseColor = Shader.PropertyToID("_BaseColor");
+        private static readonly int MaterialColor = Shader.PropertyToID("_Color");
+        private MaterialPropertyBlock properties;
         internal NetworkContext Context => context;
         public NetworkItem HeldItem => context ? context.HeldItemFor(OwnerClientId) : null;
+        public NetworkItem SelectedItem => interaction?.SelectedItem;
+        public string InteractionHint => interaction?.Hint ?? string.Empty;
 
         public Camera ViewCamera => viewCamera;
         public Vector3 TrustedPosition => validation.TrustedPosition;
@@ -43,6 +51,13 @@ namespace ArtDock.Networking
             validation = new PlayerValidation(context.Settings, transform.position);
             localControl = new LocalPlayerController(this, controller, context.Settings);
             interaction = new PlayerInteraction(this);
+            properties = new MaterialPropertyBlock();
+
+            if (IsServer)
+                ColorIndex.Value = (byte)Random.Range(0, Mathf.Min(256, context.Settings.Player.Palette?.Length ?? 0));
+
+            ColorIndex.OnValueChanged += OnColorChanged;
+            ApplyColor(ColorIndex.Value);
 
             context.RegisterPlayer(this);
             viewCamera.transform.localPosition = Vector3.up * context.Settings.Player.EyeHeight;
@@ -73,7 +88,7 @@ namespace ArtDock.Networking
             if (enableLocal == localActive) return;
             localActive = enableLocal;
             
-            if (IsOwner) SetCursor(enableLocal && Application.isFocused);
+            if (IsOwner) SetCursor(enableLocal && Application.isFocused && !context.InputBlocked && !context.Session.OverlayOpen);
         }
 
         private void UpdateLocalPlayer()
@@ -82,8 +97,13 @@ namespace ArtDock.Networking
             var mouse = Mouse.current;
             var wasLocked = Cursor.lockState == CursorLockMode.Locked;
 
-            if (keyboard != null && keyboard.escapeKey.wasPressedThisFrame) SetCursor(false);
-            else if (Application.isFocused && mouse != null && mouse.leftButton.wasPressedThisFrame) SetCursor(true);
+            if (context.InputBlocked || context.Session.OverlayOpen || keyboard != null && keyboard.tabKey.isPressed)
+            {
+                localControl.Tick(false);
+                return;
+            }
+
+            if (Application.isFocused && mouse != null && mouse.leftButton.wasPressedThisFrame) SetCursor(true);
             
             var acceptInput = Application.isFocused && Cursor.lockState == CursorLockMode.Locked;
             localControl.Tick(acceptInput);
@@ -99,7 +119,7 @@ namespace ArtDock.Networking
                 return;
             }
 
-            if (PlayerValidation.OutsideBounds(transform.position, context.Settings))
+            if (PlayerValidation.OutsideBounds(transform.position, context.Settings) || context.InResetZone(transform.position))
             {
                 Respawn();
                 return;
@@ -150,6 +170,41 @@ namespace ArtDock.Networking
 
         internal void UpdateAim(Vector3 direction) => AimRpc(direction);
 
+        private void OnColorChanged(byte previous, byte current) => ApplyColor(current);
+
+        private void ApplyColor(byte index)
+        {
+            var palette = context.Settings.Player.Palette;
+            if (!bodyRenderer || palette == null || palette.Length == 0) return;
+
+            var color = palette[index % palette.Length];
+            bodyRenderer.GetPropertyBlock(properties);
+            properties.SetColor(BaseColor, color);
+            properties.SetColor(MaterialColor, color);
+            bodyRenderer.SetPropertyBlock(properties);
+        }
+
+        public void RequestColorChange()
+        {
+            if (IsOwner) ChangeColorRpc();
+        }
+
+        [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
+        private void ChangeColorRpc()
+        {
+            if (!CanAct || Time.unscaledTime < nextColor) return;
+
+            nextColor = Time.unscaledTime + context.Settings.Player.ColorCooldown;
+            var colors = Mathf.Min(256, context.Settings.Player.Palette?.Length ?? 0);
+            if (colors > 1) ColorIndex.Value = (byte)((ColorIndex.Value + 1) % colors);
+        }
+
+        [Rpc(SendTo.Owner, InvokePermission = RpcInvokePermission.Server)]
+        internal void ConfirmThrowRpc()
+        {
+            if (IsOwner) context.Statistics?.ConfirmThrow();
+        }
+
         public bool TryConsumeItemAction()
         {
             if (!CanAct || Time.unscaledTime < nextItemAction) return false;
@@ -163,13 +218,29 @@ namespace ArtDock.Networking
             if (IsOwner) SpawnItemRpc();
         }
 
+        public void RequestButton(int id)
+        {
+            if (IsOwner) UseButtonRpc(id);
+        }
+
+        [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
+        private void UseButtonRpc(int id)
+        {
+            if (TryConsumeSpawn()) context.UseButton(id, this);
+        }
+
+        private bool TryConsumeSpawn()
+        {
+            if (!CanAct || Time.unscaledTime < nextSpawn) return false;
+
+            nextSpawn = Time.unscaledTime + context.Settings.Items.SpawnCooldown;
+            return true;
+        }
+
         [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
         private void SpawnItemRpc(RpcParams rpc = default)
         {
-            if (rpc.Receive.SenderClientId != OwnerClientId || !CanAct || Time.unscaledTime < nextSpawn) return;
-
-            nextSpawn = Time.unscaledTime + context.Settings.Items.SpawnCooldown;
-            ItemSpawner.TrySpawnForPlayer(this);
+            if (rpc.Receive.SenderClientId == OwnerClientId && TryConsumeSpawn()) ItemSpawner.TrySpawnForPlayer(this);
         }
 
         [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner, Delivery = RpcDelivery.Unreliable)]
@@ -194,6 +265,7 @@ namespace ArtDock.Networking
 
         public override void OnNetworkDespawn()
         {
+            ColorIndex.OnValueChanged -= OnColorChanged;
             HeldItem?.ReleaseDisconnected(OwnerClientId);
             context.UnregisterPlayer(this);
 
@@ -203,4 +275,67 @@ namespace ArtDock.Networking
             context = null;
         }
     }
+
+    public sealed class PlayerValidation
+    {
+        private readonly MovementBudget movement;
+        private readonly GameSettings.PlayerConfiguration settings;
+        private float nextAim;
+
+        public Vector3 TrustedPosition { get; private set; }
+        public Vector3 AimDirection { get; private set; } = Vector3.forward;
+        public bool PositionValid { get; private set; } = true;
+        public PlayerValidation(GameSettings settings, Vector3 position)
+        {
+            this.settings = settings.Player;
+            movement = new MovementBudget(this.settings.PositionTolerance, this.settings.AllowedPositionSpeed,
+                this.settings.BufferedMovementSeconds);
+            Reset(position);
+        }
+
+        public bool TryMove(Vector3 position, float elapsed)
+        {
+            var distance = Vector3.Distance(TrustedPosition, position);
+            PositionValid = Finite(position) && movement.TryConsume(distance, elapsed);
+            if (PositionValid) TrustedPosition = position;
+            return PositionValid;
+        }
+
+        public bool TryAim(Vector3 direction, float now)
+        {
+            if (!float.IsFinite(now) || now < nextAim || !Finite(direction) ||
+                direction.sqrMagnitude < 0.9f || direction.sqrMagnitude > 1.1f) return false;
+            nextAim = now + settings.AimReceiveInterval;
+            AimDirection = direction.normalized;
+            return true;
+        }
+
+        public void Reset(Vector3 position)
+        {
+            TrustedPosition = position;
+            PositionValid = true;
+            movement.Reset();
+        }
+
+        internal void RejectPosition() => PositionValid = false;
+
+        public static Vector3 SpawnPosition(ulong clientId, GameSettings settings)
+        {
+            var slot = (int)(clientId % (ulong)settings.MaxPlayers);
+            var offset = (slot - (settings.MaxPlayers - 1) * 0.5f) * settings.Player.SpawnSpacing;
+            return settings.Player.SpawnOrigin + Vector3.right * offset;
+        }
+
+        public static bool OutsideBounds(Vector3 position, GameSettings settings)
+        {
+            var min = settings.Player.MinimumPosition;
+            var max = settings.Player.MaximumPosition;
+            return !Finite(position) || position.x < min.x || position.y < min.y || position.z < min.z ||
+                   position.x > max.x || position.y > max.y || position.z > max.z;
+        }
+
+        private static bool Finite(Vector3 value) => float.IsFinite(value.x) && float.IsFinite(value.y) && float.IsFinite(value.z);
+    }
+
+
 }

@@ -1,55 +1,48 @@
-.screen {
-    flex-grow: 1;
-    align-items: center;
-    justify-content: center;
-    background-color: rgb(24, 27, 32);
-    color: rgb(228, 231, 236);
+:root {
+    --background: rgb(16, 16, 16);
+    --surface: rgb(24, 24, 24);
+    --text: rgb(245, 245, 245);
+    --muted: rgb(180, 180, 180);
+    --accent: rgb(240, 240, 240);
+    color: var(--text);
+    font-size: 16px;
 }
-
-.session-panel {
-    width: 420px;
-    padding: 24px;
-    background-color: rgb(39, 43, 51);
-    border-radius: 8px;
-}
-
-.heading {
-    font-size: 28px;
-    -unity-font-style: bold;
-    margin-bottom: 18px;
-}
-
-.session-panel .unity-base-field {
-    margin-bottom: 12px;
-}
-
-.session-panel .unity-base-field__label {
-    min-width: 114px;
-}
-
-.session-panel Button {
-    height: 34px;
-    margin-top: 4px;
-    margin-bottom: 8px;
-}
-
-.status {
-    margin-top: 12px;
-    white-space: normal;
-}
-
-.screen.playing {
-    background-color: rgba(0, 0, 0, 0);
-    align-items: flex-start;
-    justify-content: flex-start;
-}
-
-.screen.playing .session-panel {
-    width: 300px;
-    margin: 16px;
-}
-
-#players Label {
-    margin-top: 6px;
-    margin-bottom: 6px;
-}
+#screen { flex-grow: 1; align-items: center; justify-content: center; }
+.panel { width: 410px; max-width: 92%; background-color: var(--surface); padding: 28px; border-radius: 0; }
+.heading { font-size: 30px; -unity-font-style: bold; margin-bottom: 6px; }
+.game-title { font-size: 26px; white-space: nowrap; margin-bottom: 24px; }
+.subtitle { color: var(--muted); margin-bottom: 26px; font-size: 15px; }
+.muted { color: var(--muted); white-space: normal; margin-bottom: 10px; }
+Button { min-height: 42px; margin: 4px 0; padding: 10px 14px; color: var(--text); background-color: rgb(42, 42, 42); border-radius: 0; border-width: 1px; border-color: rgb(80, 80, 80); -unity-text-align: middle-left; }
+Button:hover { background-color: rgb(65, 65, 65); }
+Button:disabled { opacity: 0.45; }
+.primary, .selected { background-color: rgb(235, 235, 235); border-color: rgb(235, 235, 235); color: rgb(15, 15, 15); -unity-font-style: bold; }
+.primary:hover, .selected:hover { background-color: rgb(255, 255, 255); }
+.quiet { background-color: rgba(0,0,0,0); border-color: rgba(0,0,0,0); color: var(--muted); }
+TextField, IntegerField, DropdownField, Toggle { margin: 6px 0; min-height: 27px; }
+.unity-base-field__label { min-width: 115px; }
+.unity-base-field__label, .unity-base-field__label:hover, .unity-base-field__label:active,
+.unity-base-field:focus > .unity-base-field__label { color: var(--text); }
+.unity-base-field:focus > .unity-base-field__input, .unity-base-field__input:focus { border-color: rgb(80, 80, 80); }
+.unity-base-field__input { background-color: rgb(14, 14, 14); color: var(--text); border-width: 1px; border-color: rgb(80, 80, 80); border-radius: 0; padding: 5px; min-width: 0; }
+.unity-base-text-field__input { background-color: rgb(14, 14, 14); color: var(--text); --unity-selection-color: rgba(200, 200, 200, 0.35); --unity-cursor-color: rgb(245, 245, 245); }
+.unity-base-popup-field__text { color: var(--text); }
+Label { white-space: normal; }
+.status { color: var(--muted); margin-top: 12px; }
+.row { flex-direction: row; align-items: center; justify-content: space-between; }
+.choices { margin: 8px 0 14px; }
+.choices Button { flex-grow: 1; flex-basis: 0; margin: 0 2px; -unity-text-align: middle-center; min-height: 40px; font-size: 14px; padding: 8px; }
+.player-list { margin: 6px 0 18px; }
+.player-name { flex-grow: 1; }
+.ping { color: var(--muted); margin: 0 8px; font-size: 12px; }
+.row Button { min-height: 26px; padding: 2px 8px; font-size: 12px; }
+.players-panel { position: absolute; top: 40px; }
+.diagnostics { position: absolute; left: 15px; top: 15px; width: 280px; padding: 20px; background-color: rgba(0, 0, 0, 0.92); }
+#diagnostics-text { font-size: 14px; white-space: normal; }
+#hud { position: absolute; left: 0; right: 0; top: 0; bottom: 0; }
+#crosshair { position: absolute; left: 0; right: 0; top: 46%; -unity-text-align: middle-center; font-size: 32px; }
+#interaction { position: absolute; align-self: center; max-width: 85%; bottom: 74px; -unity-text-align: middle-center; font-size: 18px; color: white; background-color: rgba(0,0,0,0.92); padding: 10px 16px; }
+#controls { position: absolute; right: 24px; bottom: 20px; color: rgb(235, 235, 235); font-size: 13px; background-color: rgba(0,0,0,0.8); padding: 6px 10px; }
+#author { position: absolute; bottom: 16px; right: 20px; font-size: 14px; min-height: 32px; padding: 5px 8px; }
+#author:hover { color: white; background-color: rgb(40,40,40); }
+#hosts { max-height: 150px; }

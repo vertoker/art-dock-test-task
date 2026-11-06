@@ -17,7 +17,6 @@ namespace ArtDock.Core
         public const string InvalidIdentity = "Invalid player identity";
         
         public const string TransportNotAssigned = "UnityTransport is not assigned to NetworkManager";
-        public const string InvalidAddress = "Enter an IPv4 address and port, for example " + GameConstants.LoopbackAddress + ":" + GameConstants.DefaultPort;
         public const string InvalidPlayerIdentityOrName = "Player identity or name is invalid";
         public const string VersionMismatch = "Game version does not match the host";
         public const string DuplicateIdentity = "This player profile is already connected";
@@ -26,6 +25,8 @@ namespace ArtDock.Core
         public const string TransportStartFailed = "Unable to start the network transport";
         public const string ConnectionTimedOutOrRejected = "Connection timed out or was rejected";
         public const string HostConnectionLost = "Connection to the host was lost";
+        public const string InvalidAddress = "Enter an IPv4 address and port, for example "
+                                             + GameConstants.LoopbackAddress + ":" + GameConstants.DefaultPort;
 
         public const string SteamUnavailable = "Steam is unavailable: {0}";
         public const string SteamInitializationFailed = "Start Steam and sign in before connecting";
@@ -37,5 +38,8 @@ namespace ArtDock.Core
         public const string SteamLobbyTimedOut = "Steam lobby request timed out";
         public const string SteamLobbyPending = "The previous Steam lobby request is still finishing";
         public const string SteamConnectionLost = "Connection to Steam was lost";
+        public const string KickedByHost = "You were removed by the host";
+        public const string DiscoveryUnavailable = "LAN search is unavailable: {0}. You can still join by IP.";
+        public const string DiscoveryBroadcastBlocked = "LAN broadcast is unavailable. Players can still join by IP.";
     }
 }

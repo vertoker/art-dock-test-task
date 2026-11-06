@@ -1,7 +1,9 @@
-using System;
-using System.Threading;
+using System.Text;
 using System.Threading.Tasks;
+using System.Threading;
+using System;
 using ArtDock.Core;
+using Unity.Collections;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -23,7 +25,7 @@ namespace ArtDock.Networking
         private readonly GameSettings settings;
         private readonly SessionApproval approval;
         private readonly NetworkContext context;
-        private readonly SessionSceneFlow scenes;
+        private readonly NetworkWorld.SessionSceneFlow scenes;
         
         private IConnectionPlatform platform;
         private SessionAttempt attempt;
@@ -35,10 +37,18 @@ namespace ArtDock.Networking
         public event Action Changed;
         public ConnectionMode Mode { get; set; } = ConnectionMode.Lan;
         public SessionState State { get; private set; }
-        public string Message { get; private set; } = "Ready";
+        public string Message { get; private set; } = string.Empty;
         public string Title { get; private set; } = GameConstants.GameName;
+        public bool IsPrivate { get; private set; }
         public string LobbyId => platform?.LobbyId ?? string.Empty;
         public bool HasPendingJoin => pendingJoin != null;
+        public bool OverlayOpen => platforms.OverlayOpen;
+        public bool Connected => State == SessionState.Connected;
+        public bool CursorFree
+        {
+            get => context.InputBlocked;
+            set => context.InputBlocked = value;
+        }
         public bool CanInvite => State == SessionState.Connected && !Loading && platform is ILobbyPlatform lobby && lobby.CanInvite;
         
         public int Capacity
@@ -62,9 +72,10 @@ namespace ArtDock.Networking
             this.settings = settings;
             this.context = context;
             context.Initialize(settings, this);
+            Message = context.Text?[TextKeys.ChooseMode] ?? string.Empty;
             
             approval = new SessionApproval(context, settings);
-            scenes = new SessionSceneFlow(manager, context, settings);
+            scenes = new NetworkWorld.SessionSceneFlow(manager, context, settings);
             scenes.Changed += OnSceneChanged;
             scenes.Failed += Stop;
             Capacity = settings.MaxPlayers;
@@ -127,6 +138,18 @@ namespace ArtDock.Networking
             if (CanInvite && platform is ILobbyPlatform lobby) lobby.InviteFriends();
         }
 
+        public void Kick(ulong client)
+        {
+            if (State != SessionState.Connected || !IsHost || client == manager.LocalClientId ||
+                !manager.ConnectedClients.ContainsKey(client)) return;
+
+            manager.DisconnectClient(client, GameErrors.KickedByHost);
+        }
+
+        public bool SteamOverlayAvailable => (platforms.For(ConnectionMode.Steam) as IFriendsPlatform)?.OverlayAvailable ?? false;
+        public SessionFriend[] SteamFriends => (platforms.For(ConnectionMode.Steam) as IFriendsPlatform)?.GetFriends() ?? Array.Empty<SessionFriend>();
+        public bool InviteFriend(ulong id) => CanInvite && platform is IFriendsPlatform friends && friends.InviteFriend(id);
+
         private void CloseLobby()
         {
             if (platform is ILobbyPlatform lobby) lobby.CloseLobby();
@@ -140,6 +163,7 @@ namespace ArtDock.Networking
                 return false;
 
             var current = BeginAttempt(host, address, capacity);
+            IsPrivate = isPrivate;
             var token = current.Token;
             Changed?.Invoke();
 
@@ -339,5 +363,167 @@ namespace ArtDock.Networking
             State = SessionState.Offline;
             Changed?.Invoke();
         }
+
+        private class SessionApproval
+        {
+            [Serializable]
+            private class Handshake
+            {
+                public string version;
+                public string id;
+                public string name;
+            }
+
+            private static readonly UTF8Encoding Encoding = new(false, true);
+            private readonly NetworkContext context;
+            private readonly GameSettings settings;
+            private ApprovalRegistry registry;
+            private bool accepting;
+
+            public SessionApproval(NetworkContext context, GameSettings settings)
+            {
+                this.context = context;
+                this.settings = settings;
+            }
+
+            public void Begin(int capacity)
+            {
+                registry = new ApprovalRegistry(capacity, settings.ProtocolVersion, settings.MaxIdentityLength);
+                context.Clear();
+                accepting = true;
+            }
+
+            public bool TryCreatePayload(IConnectionPlatform platform, out byte[] payload, out string error)
+            {
+                payload = null;
+                error = "";
+                
+                var hello = new Handshake { version = settings.ProtocolVersion, id = platform.PlayerId, name = platform.PlayerName };
+                if (!ValidName(hello.name) || string.IsNullOrWhiteSpace(hello.id) || hello.id.Length > settings.MaxIdentityLength)
+                {
+                    error = GameErrors.InvalidPlayerIdentityOrName;
+                    return false;
+                }
+                
+                payload = Encoding.GetBytes(JsonUtility.ToJson(hello));
+                if (payload.Length > settings.MaxPayloadBytes)
+                {
+                    error = GameErrors.PayloadTooLarge;
+                    return false;
+                }
+                return true;
+            }
+
+            public void Approve(NetworkManager.ConnectionApprovalRequest request, NetworkManager.ConnectionApprovalResponse response)
+            {
+                response.Pending = false;
+                response.Approved = false;
+                response.CreatePlayerObject = false;
+                response.Reason = GameErrors.InvalidPayload;
+                
+                if (!accepting || registry == null || request.Payload == null ||
+                    request.Payload.Length == 0 || request.Payload.Length > settings.MaxPayloadBytes) return;
+                
+                if (context.World && context.World.Phase.Value == SessionPhase.Loading)
+                {
+                    response.Reason = GameConstants.SessionLoading;
+                    return;
+                }
+                
+                try
+                {
+                    var hello = JsonUtility.FromJson<Handshake>(Encoding.GetString(request.Payload));
+                    if (hello == null || !ValidName(hello.name)) return;
+                    
+                    var result = registry.TryReserveSlot(request.ClientNetworkId, hello.id, hello.version);
+                    response.Reason = RejectionReason(result);
+                    response.Approved = result == ApprovalResult.Approved;
+                    response.CreatePlayerObject = response.Approved;
+                    if (response.Approved)
+                    {
+                        context.SetName(request.ClientNetworkId, hello.name);
+                        response.Position = context.SpawnPositionFor(request.ClientNetworkId);
+                        response.Rotation = Quaternion.identity;
+                    }
+                }
+                catch (ArgumentException)
+                {
+                    response.Reason = GameErrors.InvalidPayload;
+                }
+            }
+
+            public void StopAccepting() => accepting = false;
+
+            public void Remove(ulong client)
+            {
+                registry?.Remove(client);
+                context.Remove(client);
+            }
+
+            public void Clear()
+            {
+                accepting = false;
+                registry = null;
+                context.Clear();
+            }
+
+            private bool ValidName(string name)
+            {
+                if (string.IsNullOrWhiteSpace(name) || name.Length > settings.MaxNameLength)
+                    return false;
+                
+                foreach (var character in name)
+                {
+                    if (char.IsControl(character))
+                        return false;
+                }
+                return Encoding.GetByteCount(name) <= FixedString128Bytes.UTF8MaxLengthInBytes;
+            }
+
+            private static string RejectionReason(ApprovalResult result)
+            {
+                return result switch
+                {
+                    ApprovalResult.Approved => string.Empty,
+                    ApprovalResult.VersionMismatch => GameErrors.VersionMismatch,
+                    ApprovalResult.InvalidIdentity => GameErrors.InvalidIdentity,
+                    ApprovalResult.DuplicateIdentity => GameErrors.DuplicateIdentity,
+                    ApprovalResult.SessionFull => GameConstants.SessionFull,
+                    _ => GameErrors.ConnectionRejected
+                };
+            }
+        }
+
+        private class SessionAttempt : IDisposable
+        {
+            private readonly CancellationTokenSource cancellation = new();
+            private readonly float timeout;
+            private Task<bool> preparation;
+            private float deadline;
+
+            public CancellationToken Token => cancellation.Token;
+            public bool PreparationTimedOut => cancellation.IsCancellationRequested;
+            public bool ConnectionTimedOut => Time.realtimeSinceStartup > deadline;
+            public bool PreparationCompleted => preparation == null || preparation.IsCompleted;
+
+            public SessionAttempt(float timeout)
+            {
+                this.timeout = timeout;
+                cancellation.CancelAfter(TimeSpan.FromSeconds(timeout));
+            }
+
+            public Task<bool> Prepare(IConnectionPlatform platform, bool host, string title, int capacity, bool isPrivate, string address)
+            {
+                preparation = host
+                    ? platform.PrepareHost(title, capacity, isPrivate, Token)
+                    : platform.PrepareJoin(address, Token);
+                return preparation;
+            }
+
+            public void BeginConnection() => deadline = Time.realtimeSinceStartup + timeout;
+            public void Cancel() => cancellation.Cancel();
+            public void Dispose() => cancellation.Dispose();
+        }
     }
+
 }

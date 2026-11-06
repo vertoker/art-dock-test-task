@@ -22,6 +22,14 @@ MonoBehaviour:
   maxNameLength: 32
   maxIdentityLength: 64
   player:
+    ColorCooldown: 0.5
+    Palette:
+    - {r: 0.2, g: 0.55, b: 0.95, a: 1}
+    - {r: 0.95, g: 0.3, b: 0.25, a: 1}
+    - {r: 0.25, g: 0.8, b: 0.4, a: 1}
+    - {r: 0.95, g: 0.75, b: 0.2, a: 1}
+    - {r: 0.75, g: 0.35, b: 0.9, a: 1}
+    - {r: 0.2, g: 0.85, b: 0.85, a: 1}
     SpawnOrigin: {x: 0, y: 0.1, z: -5}
     SpawnSpacing: 2
     RespawnCooldown: 1
@@ -54,9 +62,35 @@ MonoBehaviour:
     ThrowImpulse: 9
     ActionCooldown: 0.15
     SpawnCooldown: 0.5
+    DispenserCooldown: 1
     MaxVisualOffset: 0.3
     VisualSharpness: 24
   steam:
     AppId: 480
     PresenceInterval: 1
     RetryInterval: 5
+  diagnostics:
+    PingInterval: 2
+    PingTimeout: 6
+    RefreshInterval: 0.25
+  statistics:
+    FlushInterval: 10
+    AchievementThreshold: 10
+  discovery:
+    Port: 47778
+    BeaconInterval: 1
+    HostLifetime: 4
+    RetryInterval: 5
+    MaxHosts: 32
+    PacketsPerTick: 8
+    MaxPayloadBytes: 512
+  launch:
+    TargetFrameRate: 60
+    RunInBackground: 1
+    FullscreenOnStart: 1
+    AuthorUrl: https://www.linkedin.com/in/vertoker
+  world:
+    PyramidOrigin: {x: 2, y: 0, z: 5}
+    PyramidRows: 7
+    PyramidSpacing: 0.65
+    PyramidGroundGap: 0.01

@@ -4,6 +4,33 @@ using System.Threading.Tasks;
 
 namespace ArtDock.Core
 {
+    public readonly struct SessionFriend
+    {
+        public readonly ulong Id;
+        public readonly string Name;
+        public readonly string Lobby;
+
+        public SessionFriend(ulong id, string name, string lobby)
+        {
+            Id = id;
+            Name = name;
+            Lobby = lobby;
+        }
+    }
+
+    public interface IFriendsPlatform
+    {
+        bool OverlayAvailable { get; }
+        SessionFriend[] GetFriends();
+        bool InviteFriend(ulong id);
+    }
+
+    public interface IPlayerStatistics
+    {
+        void ConfirmThrow();
+        void Flush();
+    }
+
     public enum ConnectionMode : byte
     {
         Lan = 0,
@@ -34,5 +61,10 @@ namespace ArtDock.Core
         public bool CanInvite { get; }
         public void InviteFriends();
         public void CloseLobby();
+    }
+
+    public interface IOverlayPlatform
+    {
+        bool OverlayOpen { get; }
     }
 }
