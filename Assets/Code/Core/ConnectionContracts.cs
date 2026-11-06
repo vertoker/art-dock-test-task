@@ -1,0 +1,31 @@
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace ArtDock.Core
+{
+    public enum ConnectionMode : byte
+    {
+        Lan = 0,
+        Steam = 1,
+    }
+
+    public interface IConnectionPlatform : IDisposable
+    {
+        public ConnectionMode Mode { get; }
+        public string PlayerId { get; }
+        public string PlayerName { get; }
+        public string LobbyId { get; }
+        public string Error { get; }
+        
+        public event Action<string> JoinRequested;
+        public event Action<ConnectionMode, string> ConnectionLost;
+        
+        public Task<bool> PrepareHost(string title, int capacity, bool isPrivate, CancellationToken cancellationToken);
+        public Task<bool> PrepareJoin(string address, CancellationToken cancellationToken);
+        
+        public void Tick();
+        public void UpdatePresence(bool inGame, int players, int capacity, bool acceptingPlayers);
+        public void Leave();
+    }
+}

@@ -1,0 +1,15 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <Style src="Style.uss" />
+    <ui:VisualElement class="screen">
+        <ui:VisualElement class="session-panel">
+            <ui:Label text="ArtDock" class="heading" />
+            <ui:TextField name="title" label="Session name" value="ArtDock" />
+            <ui:SliderInt name="capacity" label="Players" low-value="2" high-value="4" value="4" show-input-field="true" />
+            <ui:Button name="host" text="Host" />
+            <ui:TextField name="address" label="Host address" value="127.0.0.1:7777" />
+            <ui:Button name="join" text="Join" />
+            <ui:Button name="leave" text="Leave" />
+            <ui:Label name="status" text="Ready" class="status" />
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

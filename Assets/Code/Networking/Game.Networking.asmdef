@@ -3,6 +3,7 @@
   "rootNamespace": "ArtDock.Networking",
   "references": [
     "Game.Core",
-    "Unity.Netcode.Runtime"
+    "Unity.Netcode.Runtime",
+    "Unity.Networking.Transport"
   ]
 }

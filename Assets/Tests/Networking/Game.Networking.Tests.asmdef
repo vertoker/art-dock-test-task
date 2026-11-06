@@ -1,0 +1,7 @@
+{
+  "name": "Game.Networking.Tests",
+  "rootNamespace": "ArtDock.Tests",
+  "references": ["Game.Core", "Game.Networking", "Unity.Netcode.Runtime"],
+  "includePlatforms": ["Editor"],
+  "optionalUnityReferences": ["TestAssemblies"]
+}

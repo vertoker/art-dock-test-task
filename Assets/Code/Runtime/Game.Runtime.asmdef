@@ -4,6 +4,7 @@
   "references": [
     "Game.Core",
     "Game.Networking",
+    "Unity.Netcode.Runtime",
     "VContainer"
   ]
 }

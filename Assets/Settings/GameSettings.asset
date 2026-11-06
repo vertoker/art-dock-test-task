@@ -14,3 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Game.Networking::ArtDock.Networking.GameSettings
   maxPlayers: 4
   tickRate: 30
+  protocolVersion: 1
+  port: 7777
+  connectionTimeout: 10
+  maxPayloadBytes: 512
+  maxNameLength: 32
+  maxIdentityLength: 64
