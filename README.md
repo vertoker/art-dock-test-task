@@ -1,8 +1,8 @@
 ﻿# TestGame
 
-Co-op prototype for 2-4 players, made for the ArtDock test task. Steam P2P and LAN, shared physics cubes, host-controlled world
+Multiplayer prototype for 2-4 players, made for ArtDock test task. Steam P2P and LAN, network physics cubes, host-controlled world
 
-Download the Windows build from [GitHub Releases](https://github.com/vertoker/art-dock-test-task/releases), unpack it and run `TestGame.exe`. Keep the whole build folder together
+Download the Windows build from [GitHub Releases](https://github.com/vertoker/art-dock-test-task/releases)
 
 #### Steam
 
