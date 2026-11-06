@@ -1,6 +1,7 @@
 using System;
 using System.Text;
 using ArtDock.Core;
+using Unity.Collections;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -43,14 +44,14 @@ namespace ArtDock.Networking
             var hello = new Handshake { version = settings.ProtocolVersion, id = platform.PlayerId, name = platform.PlayerName };
             if (!ValidName(hello.name) || string.IsNullOrWhiteSpace(hello.id) || hello.id.Length > settings.MaxIdentityLength)
             {
-                error = "Player identity or name is invalid";
+                error = GameErrors.InvalidPlayerIdentityOrName;
                 return false;
             }
             
             payload = Encoding.GetBytes(JsonUtility.ToJson(hello));
             if (payload.Length > settings.MaxPayloadBytes)
             {
-                error = "Connection data is too large";
+                error = GameErrors.PayloadTooLarge;
                 return false;
             }
             return true;
@@ -61,10 +62,16 @@ namespace ArtDock.Networking
             response.Pending = false;
             response.Approved = false;
             response.CreatePlayerObject = false;
-            response.Reason = "Invalid connection data";
+            response.Reason = GameErrors.InvalidPayload;
             
             if (!accepting || registry == null || request.Payload == null ||
                 request.Payload.Length == 0 || request.Payload.Length > settings.MaxPayloadBytes) return;
+            
+            if (context.World && context.World.Phase.Value == SessionPhase.Loading)
+            {
+                response.Reason = GameConstants.SessionLoading;
+                return;
+            }
             
             try
             {
@@ -79,7 +86,7 @@ namespace ArtDock.Networking
             }
             catch (ArgumentException)
             {
-                response.Reason = "Invalid connection data";
+                response.Reason = GameErrors.InvalidPayload;
             }
         }
 
@@ -100,24 +107,28 @@ namespace ArtDock.Networking
 
         private bool ValidName(string name)
         {
-            if (string.IsNullOrWhiteSpace(name) || name.Length > settings.MaxNameLength) return false;
+            if (string.IsNullOrWhiteSpace(name) || name.Length > settings.MaxNameLength)
+                return false;
+            
             foreach (var character in name)
-                if (char.IsControl(character)) return false;
-            Encoding.GetByteCount(name);
-            return true;
+            {
+                if (char.IsControl(character))
+                    return false;
+            }
+            return Encoding.GetByteCount(name) <= FixedString128Bytes.UTF8MaxLengthInBytes;
         }
 
         private static string RejectionReason(ApprovalResult result)
         {
-            switch (result)
+            return result switch
             {
-                case ApprovalResult.Approved: return "";
-                case ApprovalResult.VersionMismatch: return "Game version does not match the host.";
-                case ApprovalResult.InvalidIdentity: return "Invalid player identity.";
-                case ApprovalResult.DuplicateIdentity: return "This player profile is already connected.";
-                case ApprovalResult.SessionFull: return "Session is full.";
-                default: return "Connection rejected.";
-            }
+                ApprovalResult.Approved => string.Empty,
+                ApprovalResult.VersionMismatch => GameErrors.VersionMismatch,
+                ApprovalResult.InvalidIdentity => GameErrors.InvalidIdentity,
+                ApprovalResult.DuplicateIdentity => GameErrors.DuplicateIdentity,
+                ApprovalResult.SessionFull => GameConstants.SessionFull,
+                _ => GameErrors.ConnectionRejected
+            };
         }
     }
 }

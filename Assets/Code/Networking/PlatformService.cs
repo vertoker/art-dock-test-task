@@ -33,7 +33,7 @@ namespace ArtDock.Networking
         public IConnectionPlatform For(ConnectionMode mode)
         {
             return platforms.TryGetValue(mode, out var platform) ? platform
-                : throw new InvalidOperationException($"Connection mode {mode} is not available");
+                : throw new InvalidOperationException(string.Format(GameErrors.ConnectionModeUnavailable, mode));
         }
 
         public void Tick()

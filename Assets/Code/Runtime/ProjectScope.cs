@@ -24,10 +24,10 @@ namespace ArtDock.Runtime
 
         protected override void Configure(IContainerBuilder builder)
         {
-            if (!settings) throw new NullReferenceException($"\"{nameof(settings)}\" is null");
-            if (!manager) throw new NullReferenceException($"\"{nameof(manager)}\" is null");
-            if (!context) throw new NullReferenceException($"\"{nameof(context)}\" is null");
-            if (!view) throw new NullReferenceException($"\"{nameof(view)}\" is null");
+            if (!settings) throw new NullReferenceException(string.Format(GameErrors.MissingReference, nameof(settings)));
+            if (!manager) throw new NullReferenceException(string.Format(GameErrors.MissingReference, nameof(manager)));
+            if (!context) throw new NullReferenceException(string.Format(GameErrors.MissingReference, nameof(context)));
+            if (!view) throw new NullReferenceException(string.Format(GameErrors.MissingReference, nameof(view)));
             
             builder.RegisterInstance(settings);
             builder.RegisterInstance(manager);

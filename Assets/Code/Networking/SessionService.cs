@@ -22,17 +22,28 @@ namespace ArtDock.Networking
         private readonly PlatformService platforms;
         private readonly GameSettings settings;
         private readonly SessionApproval approval;
+        private readonly NetworkContext context;
+        private readonly SessionSceneFlow scenes;
         
         private IConnectionPlatform platform;
         private SessionAttempt attempt;
         private bool disposed;
+        private int sessionCapacity;
 
         public event Action Changed;
         public ConnectionMode Mode { get; set; } = ConnectionMode.Lan;
         public SessionState State { get; private set; }
         public string Message { get; private set; } = "Ready";
-        public string Title { get; private set; } = "ArtDock";
-        public int Capacity { get; private set; }
+        public string Title { get; private set; } = GameConstants.GameName;
+        
+        public int Capacity
+        {
+            get => World ? World.Capacity.Value : sessionCapacity;
+            private set => sessionCapacity = value;
+        }
+        public NetworkWorld World => context.World;
+        public bool Loading => scenes.Loading;
+        public bool CanStartGame => State == SessionState.Connected && scenes.CanStart;
 
         public bool IsHost => manager && manager.IsHost;
         public bool Busy => State is SessionState.Preparing or SessionState.Connecting or SessionState.Stopping;
@@ -44,13 +55,19 @@ namespace ArtDock.Networking
             this.manager = manager;
             this.platforms = platforms;
             this.settings = settings;
+            this.context = context;
+            
             approval = new SessionApproval(context, settings);
+            scenes = new SessionSceneFlow(manager, context, settings);
+            scenes.Changed += OnSceneChanged;
+            scenes.Failed += Stop;
             Capacity = settings.MaxPlayers;
 
             manager.NetworkConfig.ConnectionApproval = true;
             manager.NetworkConfig.EnableSceneManagement = true;
             manager.NetworkConfig.TickRate = (uint)settings.TickRate;
             manager.NetworkConfig.ClientConnectionBufferTimeout = Mathf.CeilToInt(settings.ConnectionTimeout);
+            manager.NetworkConfig.LoadSceneTimeOut = Mathf.CeilToInt(settings.SceneLoadTimeout);
             
             manager.ConnectionApprovalCallback += approval.Approve;
             manager.OnClientConnectedCallback += OnConnected;
@@ -63,8 +80,42 @@ namespace ArtDock.Networking
             platforms.ConnectionLost += OnConnectionLost;
         }
 
+        public void Dispose()
+        {
+            if (disposed) return;
+            disposed = true;
+            
+            scenes.Changed -= OnSceneChanged;
+            scenes.Failed -= Stop;
+            scenes.Dispose();
+            attempt?.Cancel();
+            attempt?.Dispose();
+            
+            if (manager)
+            {
+                manager.ConnectionApprovalCallback -= approval.Approve;
+                manager.OnClientConnectedCallback -= OnConnected;
+                manager.OnClientDisconnectCallback -= OnDisconnected;
+                manager.OnTransportFailure -= OnTransportFailure;
+                manager.OnServerStopped -= OnNetworkStopped;
+                manager.OnClientStopped -= OnNetworkStopped;
+                if (manager.IsListening) manager.Shutdown(true);
+            }
+            
+            platforms.JoinRequested -= OnJoinRequested;
+            platforms.ConnectionLost -= OnConnectionLost;
+            platform?.Leave();
+            approval.Clear();
+        }
+
         public Task<bool> Host(string title, int capacity, bool isPrivate) => Start(true, title, capacity, isPrivate);
         public Task<bool> Join(string address) => Start(false, address, settings.MaxPlayers, false);
+        public void StartGame()
+        {
+            if (CanStartGame) scenes.StartGame();
+        }
+
+        private void OnSceneChanged() => Changed?.Invoke();
 
         private async Task<bool> Start(bool host, string address, int capacity, bool isPrivate)
         {
@@ -90,9 +141,9 @@ namespace ArtDock.Networking
         private SessionAttempt BeginAttempt(bool host, string address, int capacity)
         {
             State = SessionState.Preparing;
-            Message = "Connecting...";
+            Message = GameConstants.Connecting;
             Capacity = Mathf.Clamp(capacity, 2, settings.MaxPlayers);
-            Title = string.IsNullOrWhiteSpace(address) || !host ? "TestGame" : address.Trim();
+            Title = string.IsNullOrWhiteSpace(address) || !host ? GameConstants.GameName : address.Trim();
             
             if (Title.Length > settings.MaxNameLength) Title = Title[..settings.MaxNameLength];
             return attempt = new SessionAttempt(settings.ConnectionTimeout);
@@ -107,6 +158,7 @@ namespace ArtDock.Networking
         private bool ValidatePreparation(SessionAttempt current, CancellationToken token, bool ready)
         {
             if (!IsCurrent(current)) return false;
+            
             token.ThrowIfCancellationRequested();
             if (ready) return true;
             
@@ -128,11 +180,13 @@ namespace ArtDock.Networking
             
             current.BeginConnection();
             var started = host ? manager.StartHost() : manager.StartClient();
+            
             if (!started)
             {
-                Stop("Unable to start the network transport");
+                Stop(GameErrors.TransportStartFailed);
                 return false;
             }
+            if (host) scenes.SpawnWorld(Capacity);
             
             Changed?.Invoke();
             return true;
@@ -141,9 +195,10 @@ namespace ArtDock.Networking
         private void HandleStartFailure(SessionAttempt current, Exception exception)
         {
             if (!IsCurrent(current)) return;
+            
             if (exception is OperationCanceledException)
             {
-                Stop("Connection timed out");
+                Stop(GameErrors.ConnectionTimedOut);
                 return;
             }
             
@@ -160,7 +215,7 @@ namespace ArtDock.Networking
             {
                 attempt?.Cancel();
                 State = SessionState.Connected;
-                Message = IsHost ? "Hosting" : "Connected";
+                Message = IsHost ? GameConstants.Hosting : GameConstants.Connected;
             }
             Changed?.Invoke();
         }
@@ -175,8 +230,8 @@ namespace ArtDock.Networking
                 (client == manager.LocalClientId || !manager.IsServer && client == NetworkManager.ServerClientId))
             {
                 var reason = manager.DisconnectReason;
-                if (string.IsNullOrWhiteSpace(reason) || reason.StartsWith("[Disconnect Event]", StringComparison.Ordinal))
-                    reason = State == SessionState.Connecting ? "Connection timed out or was rejected" : "Connection to the host was lost";
+                if (string.IsNullOrWhiteSpace(reason) || reason.StartsWith(GameConstants.TransportDisconnectPrefix, StringComparison.Ordinal))
+                    reason = State == SessionState.Connecting ? GameErrors.ConnectionTimedOutOrRejected : GameErrors.HostConnectionLost;
                 Stop(reason);
             }
             Changed?.Invoke();
@@ -185,10 +240,10 @@ namespace ArtDock.Networking
         private void OnNetworkStopped(bool wasHost)
         {
             if (State != SessionState.Offline && State != SessionState.Stopping)
-                Stop("Network session ended");
+                Stop(GameErrors.SessionEnded);
         }
 
-        private void OnTransportFailure() => Stop("Network transport failed");
+        private void OnTransportFailure() => Stop(GameErrors.TransportFailed);
         private void OnJoinRequested(string address)
         {
             if (!disposed && State == SessionState.Offline)
@@ -207,9 +262,10 @@ namespace ArtDock.Networking
                 return;
             
             State = SessionState.Stopping;
+            scenes.BeginShutdown();
             approval.StopAccepting();
             attempt?.Cancel();
-            Message = reason ?? "";
+            Message = reason ?? string.Empty;
             
             if (manager.IsListening || manager.IsClient || manager.IsServer)
                 manager.Shutdown();
@@ -221,48 +277,32 @@ namespace ArtDock.Networking
             if (disposed) return;
             platforms.Tick();
             if (State == SessionState.Preparing && attempt.PreparationTimedOut ||
-                State == SessionState.Connecting && attempt.ConnectionTimedOut)
-                Stop("Connection timed out");
+                State == SessionState.Connecting && (scenes.Synchronizing ? scenes.SynchronizationTimedOut : attempt.ConnectionTimedOut))
+                Stop(GameErrors.ConnectionTimedOut);
 
-            if (State == SessionState.Stopping && !manager.ShutdownInProgress && !manager.IsListening &&
-                (attempt == null || attempt.PreparationCompleted))
-            {
-                platform?.Leave();
-                platform = null;
-                attempt?.Dispose();
-                attempt = null;
-                approval.Clear();
-                
-                manager.NetworkConfig.ConnectionData = Array.Empty<byte>();
-                State = SessionState.Offline;
-                Changed?.Invoke();
-            }
+            if (State == SessionState.Stopping) TryFinishStop();
             else if (State == SessionState.Connected)
-                platform?.UpdatePresence(false, PlayerCount, Capacity, PlayerCount < Capacity);
+            {
+                platform?.UpdatePresence(World && World.Phase.Value == SessionPhase.Playing,
+                    PlayerCount, Capacity, !Loading && PlayerCount < Capacity);
+            }
         }
 
-        public void Dispose()
+        private void TryFinishStop()
         {
-            if (disposed) return;
-            disposed = true;
-            attempt?.Cancel();
-            attempt?.Dispose();
+            if (manager.ShutdownInProgress || manager.IsListening ||
+                attempt is { PreparationCompleted: false } || !scenes.ReturnToMenu()) return;
             
-            if (manager)
-            {
-                manager.ConnectionApprovalCallback -= approval.Approve;
-                manager.OnClientConnectedCallback -= OnConnected;
-                manager.OnClientDisconnectCallback -= OnDisconnected;
-                manager.OnTransportFailure -= OnTransportFailure;
-                manager.OnServerStopped -= OnNetworkStopped;
-                manager.OnClientStopped -= OnNetworkStopped;
-                if (manager.IsListening) manager.Shutdown(true);
-            }
-            
-            platforms.JoinRequested -= OnJoinRequested;
-            platforms.ConnectionLost -= OnConnectionLost;
             platform?.Leave();
+            platform = null;
+            attempt?.Dispose();
+            attempt = null;
             approval.Clear();
+            scenes.Reset();
+            
+            manager.NetworkConfig.ConnectionData = Array.Empty<byte>();
+            State = SessionState.Offline;
+            Changed?.Invoke();
         }
     }
 }

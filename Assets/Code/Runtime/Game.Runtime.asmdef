@@ -2,9 +2,9 @@
   "name": "Game.Runtime",
   "rootNamespace": "ArtDock.Runtime",
   "references": [
-    "Game.Core",
-    "Game.Networking",
-    "Unity.Netcode.Runtime",
-    "VContainer"
+    "GUID:4dfb9117413d00247ac026ea10e32feb",
+    "GUID:887b59a04cb761844a99fef5a400cf8f",
+    "GUID:1491147abca9d7d4bb7105af628b223e",
+    "GUID:b0214a6008ed146ff8f122a6a9c2f6cc"
   ]
 }

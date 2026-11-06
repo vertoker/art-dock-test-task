@@ -23,7 +23,7 @@ namespace ArtDock.Core
         public ApprovalRegistry(int capacity, string version, int maxIdentityLength = 64)
         {
             if (capacity < 1) throw new ArgumentOutOfRangeException(nameof(capacity));
-            if (string.IsNullOrEmpty(version)) throw new ArgumentException("version is required", nameof(version));
+            if (string.IsNullOrEmpty(version)) throw new ArgumentException(GameErrors.VersionRequired, nameof(version));
             if (maxIdentityLength < 1) throw new ArgumentOutOfRangeException(nameof(maxIdentityLength));
             
             this.capacity = capacity;

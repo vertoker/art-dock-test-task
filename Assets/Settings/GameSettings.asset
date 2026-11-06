@@ -17,6 +17,7 @@ MonoBehaviour:
   protocolVersion: 1
   port: 7777
   connectionTimeout: 10
+  sceneLoadTimeout: 30
   maxPayloadBytes: 512
   maxNameLength: 32
   maxIdentityLength: 64

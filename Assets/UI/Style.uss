@@ -37,3 +37,19 @@
     margin-top: 12px;
     white-space: normal;
 }
+
+.screen.playing {
+    background-color: rgba(0, 0, 0, 0);
+    align-items: flex-start;
+    justify-content: flex-start;
+}
+
+.screen.playing .session-panel {
+    width: 300px;
+    margin: 16px;
+}
+
+#players Label {
+    margin-top: 6px;
+    margin-bottom: 6px;
+}

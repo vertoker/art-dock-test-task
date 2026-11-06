@@ -31,9 +31,9 @@ namespace ArtDock.Networking.Platforms
             this.options = options;
             transport = manager.GetComponent<UnityTransport>();
             if (!transport)
-                throw new InvalidOperationException("UnityTransport is not assigned to NetworkManager");
+                throw new InvalidOperationException(GameErrors.TransportNotAssigned);
             
-            var key = $"TestGame.PlayerId.{options.Profile}";
+            var key = $"{GameConstants.GameName}.PlayerId.{options.Profile}";
             PlayerId = PlayerPrefs.GetString(key, "");
             
             if (string.IsNullOrEmpty(PlayerId))
@@ -49,7 +49,7 @@ namespace ArtDock.Networking.Platforms
             cancellationToken.ThrowIfCancellationRequested();
             Error = "";
             manager.NetworkConfig.NetworkTransport = transport;
-            transport.SetConnectionData("127.0.0.1", options.Port, "0.0.0.0");
+            transport.SetConnectionData(GameConstants.LoopbackAddress, options.Port, GameConstants.ListenAddress);
             return Task.FromResult(true);
         }
 
@@ -62,7 +62,7 @@ namespace ArtDock.Networking.Platforms
             if (parts.Length > 2 || !IPAddress.TryParse(parts[0], out var ip) || ip.AddressFamily != AddressFamily.InterNetwork ||
                 (parts.Length == 2 && (!ushort.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out port) || port == 0)))
             {
-                Error = "Enter an IPv4 address and port, for example 127.0.0.1:7777";
+                Error = GameErrors.InvalidAddress;
                 return Task.FromResult(false);
             }
             manager.NetworkConfig.NetworkTransport = transport;

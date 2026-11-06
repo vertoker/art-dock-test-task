@@ -1,3 +1,4 @@
+using ArtDock.Core;
 using ArtDock.Networking;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -22,17 +23,17 @@ namespace ArtDock.Runtime
 
         public void Start()
         {
-            menuLoad = SceneManager.LoadSceneAsync("Menu", LoadSceneMode.Single);
+            menuLoad = SceneManager.LoadSceneAsync(GameConstants.MenuScene, LoadSceneMode.Single);
         }
 
         public void Tick()
         {
             session.Tick();
-            if (launchHandled || menuLoad == null || !menuLoad.isDone) return;
+            if (launchHandled || menuLoad is not { isDone: true }) return;
             launchHandled = true;
             
             if (options.Host)
-                session.Host("ArtDock", settings.MaxPlayers, false);
+                session.Host(GameConstants.GameName, settings.MaxPlayers, false);
             else if (!string.IsNullOrWhiteSpace(options.JoinAddress))
                 session.Join(options.JoinAddress);
         }
