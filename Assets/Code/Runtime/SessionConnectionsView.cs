@@ -11,10 +11,19 @@ namespace ArtDock.Runtime
     /// <summary> Lists discovered LAN sessions and Steam friends with join and invitation actions </summary>
     internal class SessionConnectionsView : IDisposable
     {
-        private readonly VisualElement root;
         private readonly SessionService session;
         private readonly LanDiscovery discovery;
         private readonly IGameText text;
+
+        private readonly VisualElement hostsList;
+        private readonly Label lanStatus;
+        private readonly VisualElement steamFriendsPanel;
+        private readonly VisualElement inviteFriendsPanel;
+        private readonly VisualElement steamFriendsList;
+        private readonly VisualElement inviteFriendsList;
+        private readonly Label steamFriendsHeading;
+        private readonly Label inviteFriendsHeading;
+
         private readonly List<(Button Button, Action Callback)> hostCallbacks = new();
         private readonly List<(Button Button, Action Callback)> friendCallbacks = new();
         private bool showFriends;
@@ -23,23 +32,29 @@ namespace ArtDock.Runtime
         public SessionConnectionsView(VisualElement root, SessionService session, LanDiscovery discovery, IGameText text,
             SessionConnectionsView previous)
         {
-            this.root = root;
             this.session = session;
             this.discovery = discovery;
             this.text = text;
+
+            hostsList = root.Q("hosts");
+            lanStatus = root.Q<Label>("lan-status");
+            steamFriendsPanel = root.Q("steam-friends");
+            inviteFriendsPanel = root.Q("invite-friends");
+            steamFriendsList = root.Q("steam-friends-list");
+            inviteFriendsList = root.Q("invite-friends-list");
+            steamFriendsHeading = root.Q<Label>("steam-friends-heading");
+            inviteFriendsHeading = root.Q<Label>("invite-friends-heading");
 
             showFriends = previous?.showFriends ?? false;
             friendsRefreshAt = previous?.friendsRefreshAt ?? 0;
         }
 
-        /// <summary> Starts or stops LAN session discovery </summary>
         public void ToggleSearch()
         {
             if (discovery.Searching) discovery.StopSearch();
             else discovery.StartSearch();
         }
 
-        /// <summary> Opens the invitation list and the Steam overlay when available </summary>
         public void ToggleFriends(bool joining)
         {
             showFriends = !showFriends;
@@ -50,13 +65,11 @@ namespace ArtDock.Runtime
 
         public void ResetFriends() => friendsRefreshAt = 0;
 
-        /// <summary> Rebuilds LAN session rows and sets whether each host can be joined </summary>
         public void RefreshHosts()
         {
-            var list = root.Q("hosts");
             ClearCallbacks(hostCallbacks);
-            list.Clear();
-            root.Q<Label>("lan-status").text = discovery.Status;
+            hostsList.Clear();
+            lanStatus.text = discovery.Status;
             
             foreach (var host in discovery.Hosts)
             {
@@ -70,30 +83,28 @@ namespace ArtDock.Runtime
                 
                 BindDynamicButton(button, () => _ = session.Join(address), hostCallbacks);
                 button.SetEnabled(!session.Busy && host.Players < host.Capacity);
-                list.Add(button);
+                hostsList.Add(button);
             }
         }
 
-        /// <summary> Selects the friend list for joining or inviting and limits its refresh rate </summary>
         public void RefreshFriends(bool joining)
         {
             var inviting = session.CanInvite && showFriends;
-            Show("steam-friends", joining);
-            Show("invite-friends", inviting);
+            Show(steamFriendsPanel, joining);
+            Show(inviteFriendsPanel, inviting);
             if (!joining && !inviting || Time.unscaledTime < friendsRefreshAt) return;
 
             friendsRefreshAt = Time.unscaledTime + 2;
             RefreshFriendList(joining);
         }
 
-        /// <summary> Fills the selected friend list and shows a message when no matching friends exist </summary>
         private void RefreshFriendList(bool joining)
         {
-            var list = root.Q(joining ? "steam-friends-list" : "invite-friends-list");
+            var list = joining ? steamFriendsList : inviteFriendsList;
             ClearCallbacks(friendCallbacks);
             list.Clear();
-            SetText("steam-friends-heading", TextKeys.FriendsHeading);
-            SetText("invite-friends-heading", session.SteamOverlayAvailable ? TextKeys.FriendsHeading : TextKeys.SteamOverlayHelp);
+            steamFriendsHeading.text = text[TextKeys.FriendsHeading];
+            inviteFriendsHeading.text = text[session.SteamOverlayAvailable ? TextKeys.FriendsHeading : TextKeys.SteamOverlayHelp];
 
             foreach (var friend in session.SteamFriends)
             {
@@ -105,7 +116,6 @@ namespace ArtDock.Runtime
             if (list.childCount == 0) list.Add(new Label(text[joining ? TextKeys.NoFriendLobbies : TextKeys.NoOnlineFriends]));
         }
 
-        /// <summary> Creates a friend row for joining their lobby or sending an invitation </summary>
         private Button CreateFriendButton(SessionFriend friend, bool joining)
         {
             var button = new Button
@@ -121,7 +131,6 @@ namespace ArtDock.Runtime
             return button;
         }
 
-        /// <summary> Sends an invitation and displays its result on the selected friend row </summary>
         private void InviteFriend(SessionFriend friend, Button button)
         {
             var sent = session.InviteFriend(friend.Id);
@@ -129,22 +138,19 @@ namespace ArtDock.Runtime
             button.SetEnabled(!sent);
         }
 
-        /// <summary> Stores the callback so it can be removed when the list is rebuilt </summary>
         private static void BindDynamicButton(Button button, Action callback, List<(Button Button, Action Callback)> bindings)
         {
             button.clicked += callback;
             bindings.Add((button, callback));
         }
 
-        /// <summary> Removes button callbacks before clearing the list </summary>
         private static void ClearCallbacks(List<(Button Button, Action Callback)> bindings)
         {
             foreach (var binding in bindings) binding.Button.clicked -= binding.Callback;
             bindings.Clear();
         }
 
-        private void SetText(string element, string key) => root.Q<TextElement>(element).text = text[key];
-        private void Show(string name, bool visible) => root.Q(name).style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
+        private static void Show(VisualElement element, bool visible) => element.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
 
         public void Dispose()
         {

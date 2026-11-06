@@ -52,7 +52,6 @@ namespace ArtDock.Networking.Platforms
         public string Status { get; private set; }
         public string BroadcastError { get; private set; } = string.Empty;
 
-        /// <summary> Creates a receive buffer sized to detect oversized announcements </summary>
         public LanDiscovery(GameSettings settings, IGameText text)
         {
             this.settings = settings;
@@ -61,7 +60,6 @@ namespace ArtDock.Networking.Platforms
             buffer = new byte[settings.Discovery.MaxPayloadBytes + 1];
         }
 
-        /// <summary> Opens a nonblocking discovery socket and resets previous search results </summary>
         public void StartSearch()
         {
             StopSearch();
@@ -88,7 +86,6 @@ namespace ArtDock.Networking.Platforms
             Changed?.Invoke();
         }
 
-        /// <summary> Closes the discovery socket and clears the discovered host list </summary>
         public void StopSearch()
         {
             receiver?.Dispose();
@@ -99,16 +96,13 @@ namespace ArtDock.Networking.Platforms
             Changed?.Invoke();
         }
 
-        /// <summary> Updates host advertisements, receives announcements and expires old hosts </summary>
         public void Tick(bool advertise, string title, ushort port, int players, int capacity)
         {
-            // Send announcements at the configured interval
             if (advertise && Time.unscaledTime >= nextBeacon)
             {
                 nextBeacon = Time.unscaledTime + settings.Discovery.BeaconInterval;
                 Broadcast(title, port, players, capacity);
             }
-            // Release the socket and clear the broadcast error when advertising stops
             else if (!advertise && sender != null)
             {
                 sender.Dispose();
@@ -124,7 +118,6 @@ namespace ArtDock.Networking.Platforms
             if (Searching) SetStatus(text[hosts.Count == 0 ? TextKeys.DiscoveryNoHosts : TextKeys.DiscoverySelectHost]);
         }
 
-        /// <summary> Sends a size-limited session announcement with retry handling </summary>
         private void Broadcast(string title, ushort port, int players, int capacity)
         {
             try
@@ -140,11 +133,9 @@ namespace ArtDock.Networking.Platforms
                     capacity = capacity,
                 };
                 
-                // Skip announcements that exceed the packet size limit
                 var bytes = Encoding.GetBytes(JsonUtility.ToJson(beacon));
                 if (bytes.Length > settings.Discovery.MaxPayloadBytes) return;
 
-                // Broadcast to the local network on the separate discovery port
                 sender.Send(bytes, bytes.Length, new IPEndPoint(IPAddress.Broadcast, settings.Discovery.Port));
                 BroadcastError = string.Empty;
             }
@@ -157,7 +148,6 @@ namespace ArtDock.Networking.Platforms
             }
         }
 
-        /// <summary> Processes a bounded number of announcements per frame without waiting for new packets </summary>
         private void ReceiveHosts()
         {
             for (var i = 0; i < settings.Discovery.PacketsPerTick; i++)
@@ -176,7 +166,6 @@ namespace ArtDock.Networking.Platforms
             }
         }
 
-        /// <summary> Receives one announcement and stores the host if the payload is valid </summary>
         private void ReceiveHost()
         {
             EndPoint endpoint = new IPEndPoint(IPAddress.Any, 0);
@@ -187,7 +176,6 @@ namespace ArtDock.Networking.Platforms
             if (Valid(beacon)) Remember(beacon, ((IPEndPoint)endpoint).Address);
         }
 
-        /// <summary> Decides whether receiving can continue after an error and closes a failed socket </summary>
         private bool HandleReceiveError(SocketException exception)
         {
             if (exception.SocketErrorCode == SocketError.WouldBlock) return false;
@@ -199,7 +187,6 @@ namespace ArtDock.Networking.Platforms
             return false;
         }
 
-        /// <summary> Checks announcement compatibility, session limits and the displayed title </summary>
         private bool Valid(Beacon beacon)
         {
             if (beacon == null || beacon.magic != Marker || beacon.version != settings.ProtocolVersion) return false;
@@ -214,7 +201,6 @@ namespace ArtDock.Networking.Platforms
             return true;
         }
 
-        /// <summary> Updates a discovered host or adds it while the host limit allows </summary>
         private void Remember(Beacon beacon, IPAddress ip)
         {
             var address = $"{ip}:{beacon.port}";
@@ -234,7 +220,6 @@ namespace ArtDock.Networking.Platforms
             if (changed) Changed?.Invoke();
         }
 
-        /// <summary> Removes hosts whose announcements have exceeded their lifetime </summary>
         private void ExpireHosts()
         {
             expired.Clear();
@@ -248,7 +233,6 @@ namespace ArtDock.Networking.Platforms
             if (expired.Count > 0) Changed?.Invoke();
         }
 
-        /// <summary> Notifies subscribers only when the search status text changes </summary>
         private void SetStatus(string status)
         {
             if (Status == status) return;
@@ -257,7 +241,6 @@ namespace ArtDock.Networking.Platforms
             Changed?.Invoke();
         }
 
-        /// <summary> Closes discovery and advertisement sockets </summary>
         public void Dispose()
         {
             StopSearch();

@@ -8,11 +8,8 @@ namespace ArtDock.Networking
     /// <summary> Network world phase: lobby, arena loading or gameplay </summary>
     public enum SessionPhase : byte
     {
-        /// <summary> Players connect and wait for the host to start </summary>
         Lobby = 0,
-        /// <summary> Clients load and synchronize the arena </summary>
         Loading = 1,
-        /// <summary> The arena is ready and gameplay actions are allowed </summary>
         Playing = 2,
     }
 
@@ -36,7 +33,6 @@ namespace ArtDock.Networking
 
         public event Action Changed;
 
-        /// <summary> Number of players who have finished loading the arena </summary>
         public int LoadedCount
         {
             get
@@ -50,7 +46,6 @@ namespace ArtDock.Networking
 
         private void Awake() => Players = new NetworkList<SessionPlayer>();
 
-        /// <summary> Checks that gameplay has started and the given client finished loading </summary>
         public bool IsReady(ulong client)
         {
             if (Phase.Value != SessionPhase.Playing) return false;
@@ -62,7 +57,6 @@ namespace ArtDock.Networking
         }
         internal void Initialize(int capacity) => initialCapacity = capacity;
 
-        /// <summary> Binds replicated state and initializes the server roster and RTT probes </summary>
         public override void OnNetworkSpawn()
         {
             manager = NetworkManager;
@@ -87,7 +81,6 @@ namespace ArtDock.Networking
             context.RegisterWorld(this);
         }
 
-        /// <summary> Removes network callbacks and clears the current world reference </summary>
         public override void OnNetworkDespawn()
         {
             if (manager)
@@ -104,7 +97,6 @@ namespace ArtDock.Networking
             if (context) context.UnregisterWorld(this);
         }
 
-        /// <summary> Adds a newly connected client to the replicated player roster </summary>
         private void OnConnected(ulong client)
         {
             for (var i = 0; i < Players.Count; i++)
@@ -115,7 +107,6 @@ namespace ArtDock.Networking
             Players.Add(new SessionPlayer(client, context.NameFor(client), Phase.Value == SessionPhase.Playing));
         }
 
-        /// <summary> Removes a disconnected player and their pending RTT measurements </summary>
         private void OnDisconnected(ulong client)
         {
             RemoveLatency(client);
@@ -129,7 +120,6 @@ namespace ArtDock.Networking
             }
         }
 
-        /// <summary> Clears player load flags before switching the server world to loading </summary>
         internal void BeginLoading()
         {
             if (!IsServer) return;
@@ -149,7 +139,6 @@ namespace ArtDock.Networking
                 Phase.Value = phase;
         }
 
-        /// <summary> Marks the given player as loaded in the server roster </summary>
         internal void MarkLoaded(ulong client)
         {
             if (!IsServer) return;
@@ -172,16 +161,13 @@ namespace ArtDock.Networking
 
         internal void SendProbe(uint sequence) => ProbeRpc(sequence);
 
-        /// <summary> Requests a client reply to measure application RTT </summary>
         [Rpc(SendTo.NotServer, InvokePermission = RpcInvokePermission.Server)]
         private void ProbeRpc(uint sequence) => ReplyRpc(sequence);
 
-        /// <summary> Receives a probe reply and identifies its sender from the RPC </summary>
         [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
         private void ReplyRpc(uint sequence, RpcParams rpc = default)
             => RecordRoundTrip(rpc.Receive.SenderClientId, sequence);
 
-        /// <summary> Updates the player RTT only when its displayed value changes </summary>
         internal void SetRoundTrip(ulong client, int milliseconds)
         {
             for (var i = 0; i < Players.Count; i++)
@@ -197,7 +183,6 @@ namespace ArtDock.Networking
 
         private void OnPhaseChanged(SessionPhase previous, SessionPhase current) => Changed?.Invoke();
         private void OnCapacityChanged(byte previous, byte current) => Changed?.Invoke();
-        /// <summary> Replicates a complete roster revision on the server and notifies clients of changes </summary>
         private void OnPlayersChanged(NetworkListEvent<SessionPlayer> change)
         {
             if (IsServer)
@@ -210,7 +195,6 @@ namespace ArtDock.Networking
 
         private void OnPlayersRevisionChanged(uint previous, uint current) => Changed?.Invoke();
 
-        /// <summary> Sends periodic application probes and expires stale RTT measurements </summary>
         private void UpdateRoundTrips()
         {
             var now = Time.realtimeSinceStartupAsDouble;
@@ -227,7 +211,6 @@ namespace ArtDock.Networking
                 
                 if (client == NetworkManager.ServerClientId)
                     SetRoundTrip(client, 0);
-                // Show an unavailable measurement when the latest reply is too old
                 else if (!lastReplies.TryGetValue(client, out var last) || now - last > context.Settings.Diagnostics.PingTimeout)
                     SetRoundTrip(client, -1);
             }
@@ -235,10 +218,8 @@ namespace ArtDock.Networking
             SendProbe(sequence);
         }
 
-        /// <summary> Accepts one timely reply per client for the current probe </summary>
         private void RecordRoundTrip(ulong client, uint reply)
         {
-            // Ignore replies to earlier probes and repeated replies from one client
             if (reply != sequence || client == NetworkManager.ServerClientId || !received.Add(client)) return;
 
             var elapsed = Time.realtimeSinceStartupAsDouble - sentAt;

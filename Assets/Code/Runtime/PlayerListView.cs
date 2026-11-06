@@ -59,7 +59,6 @@ namespace ArtDock.Runtime
             this.text = text;
         }
 
-        /// <summary> Updates existing rows and removes rows for players who left </summary>
         public void Refresh(NetworkWorld world)
         {
             active.Clear();
@@ -87,7 +86,6 @@ namespace ArtDock.Runtime
             }
         }
 
-        /// <summary> Fills a player row and sets whether the host can kick that player </summary>
         private void RefreshRow(SessionPlayer player, NetworkWorld world)
         {
             if (!rows.TryGetValue(player.ClientId, out var row))

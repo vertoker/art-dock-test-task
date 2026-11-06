@@ -25,7 +25,6 @@ namespace ArtDock.Networking
             cancellation.CancelAfter(TimeSpan.FromSeconds(timeout));
         }
 
-        /// <summary> Starts and retains the cancellable platform preparation task </summary>
         public Task<bool> Prepare(IConnectionPlatform platform, bool host, string title, int capacity, bool isPrivate, string address)
         {
             preparation = host
@@ -34,7 +33,6 @@ namespace ArtDock.Networking
             return preparation;
         }
 
-        /// <summary> Starts the transport connection deadline after platform preparation </summary>
         public void BeginConnection() => deadline = Time.realtimeSinceStartup + timeout;
         public void Cancel() => cancellation.Cancel();
         public void Dispose() => cancellation.Dispose();

@@ -7,8 +7,8 @@ namespace ArtDock.Core
     {
         private readonly float tolerance;
         private readonly float speed;
-        private readonly float capacity;
-        private float available;
+        private readonly float distanceCapacity;
+        private float availableDistance;
 
         public MovementBudget(float tolerance, float speed, float bufferedSeconds)
         {
@@ -21,25 +21,25 @@ namespace ArtDock.Core
             
             this.tolerance = tolerance;
             this.speed = speed;
-            capacity = tolerance + speed * bufferedSeconds;
+            distanceCapacity = tolerance + speed * bufferedSeconds;
             
             Reset();
         }
 
-        /// <summary> Spends the movement budget when the distance stays within the allowed speed </summary>
+        /// <summary> Refills the distance budget for valid samples, then spends it if affordable.
+        /// Unaffordable moves keep the refill </summary>
         public bool TryConsume(float distance, float elapsedSeconds)
         {
-            // Reject negative values, NaN and infinities
             if (!float.IsFinite(distance) || distance < 0 || !float.IsFinite(elapsedSeconds) || elapsedSeconds < 0)
                 return false;
             
-            available = Math.Min(capacity, available + speed * elapsedSeconds);
-            if (distance > available) return false;
+            availableDistance = Math.Min(distanceCapacity, availableDistance + speed * elapsedSeconds);
+            if (distance > availableDistance) return false;
             
-            available -= distance;
+            availableDistance -= distance;
             return true;
         }
 
-        public void Reset() => available = tolerance;
+        public void Reset() => availableDistance = tolerance;
     }
 }

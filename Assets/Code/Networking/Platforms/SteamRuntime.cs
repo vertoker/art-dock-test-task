@@ -34,7 +34,6 @@ namespace ArtDock.Networking.Platforms
 
         public SteamRuntime(GameSettings settings) => this.settings = settings;
 
-        /// <summary> Starts the SDK and subscribes to Steam events </summary>
         public bool EnsureInitialized()
         {
             if (disposed) return false;
@@ -48,12 +47,10 @@ namespace ArtDock.Networking.Platforms
                 }
                 if (!SteamClient.IsValid) throw new InvalidOperationException(GameErrors.SteamInitializationFailed);
 
-                // Initialize relay access and set connection timeouts
                 SteamNetworkingUtils.InitRelayNetworkAccess();
                 SteamNetworkingUtils.ConnectionTimeout = (int)(settings.ConnectionTimeout * 1000);
                 SteamNetworkingUtils.Timeout = (int)(settings.ConnectionTimeout * 1000);
 
-                // Remove previous subscriptions before initializing again
                 Unsubscribe();
                 SteamFriends.OnGameLobbyJoinRequested += OnLobbyJoin;
                 SteamFriends.OnGameRichPresenceJoinRequested += OnPresenceJoin;
@@ -69,7 +66,6 @@ namespace ArtDock.Networking.Platforms
             }
         }
 
-        /// <summary> Pumps Steam callbacks and records SDK failures for the session </summary>
         public bool RunCallbacks()
         {
             if (disposed || !IsValid) return false;
@@ -86,25 +82,21 @@ namespace ArtDock.Networking.Platforms
             }
         }
 
-        /// <summary> Forwards a lobby invitation as a session join request </summary>
         private void OnLobbyJoin(Lobby lobby, SteamId friend)
         {
             if (lobby.Id.Value != 0)
                 JoinRequested?.Invoke(lobby.Id.ToString());
         }
 
-        /// <summary> Parses a lobby join request from the Steam Rich Presence command </summary>
         private void OnPresenceJoin(Friend friend, string command)
         {
             const string prefix = GameConstants.SteamConnectArgument + " ";
             if (string.IsNullOrEmpty(command) || !command.StartsWith(prefix, StringComparison.Ordinal)) return;
 
-            // Accept only a valid lobby ID from the invitation command
             if (SteamLobby.TryParseId(command[prefix.Length..], out var id))
                 JoinRequested?.Invoke(id.ToString());
         }
 
-        /// <summary> Removes SDK event subscriptions before reinitialization or disposal </summary>
         private void Unsubscribe()
         {
             SteamFriends.OnGameLobbyJoinRequested -= OnLobbyJoin;
@@ -114,7 +106,6 @@ namespace ArtDock.Networking.Platforms
 
         private void OnOverlayActivated(bool active) => OverlayOpen = active;
 
-        /// <summary> Unsubscribes SDK events and shuts down the Steam client once </summary>
         public void Dispose()
         {
             if (disposed) return;

@@ -83,11 +83,9 @@ namespace ArtDock.Runtime
 
         private void TickDiscovery()
         {
-            // Stop discovery when switching platforms or leaving the connection menu
             if (discovery.Searching && (session.Mode != ConnectionMode.Lan || session.State != SessionState.Offline))
                 discovery.StopSearch();
 
-            // Advertise only an open LAN session that is ready to accept another player
             var advertise = session.Mode == ConnectionMode.Lan && session.IsHost && !session.IsPrivate &&
                 session.State == SessionState.Connected && !session.Loading && session.PlayerCount < session.Capacity;
             discovery.Tick(advertise, session.Title, options.Port, session.PlayerCount, session.Capacity);

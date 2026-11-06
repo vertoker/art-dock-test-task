@@ -9,15 +9,10 @@ namespace ArtDock.Networking
     /// <summary> Connection state from platform preparation through complete session shutdown </summary>
     public enum SessionState : byte
     {
-        /// <summary> No network session is running </summary>
         Offline = 0,
-        /// <summary> The platform is preparing a host or client connection </summary>
         Preparing = 1,
-        /// <summary> The transport has started and is waiting for connection approval </summary>
         Connecting = 2,
-        /// <summary> The local client is connected to the session </summary>
         Connected = 3,
-        /// <summary> The session is shutting down and returning to the menu </summary>
         Stopping = 4,
     }
     
@@ -69,10 +64,16 @@ namespace ArtDock.Networking
 
         public bool IsHost => manager && manager.IsHost;
         public bool Busy => State is SessionState.Preparing or SessionState.Connecting or SessionState.Stopping;
-        public int PlayerCount => manager && manager.IsServer
-            ? manager.ConnectedClientsIds.Count : World ? World.Players.Count : State == SessionState.Connected ? 1 : 0;
+        public int PlayerCount
+        {
+            get
+            {
+                if (manager && manager.IsServer) return manager.ConnectedClientsIds.Count;
+                if (World) return World.Players.Count;
+                return State == SessionState.Connected ? 1 : 0;
+            }
+        }
 
-        /// <summary> Initializes session dependencies and subscribes to scene, network and platform events </summary>
         public SessionService(NetworkManager manager, NetworkContext context, PlatformService platforms, GameSettings settings)
         {
             this.manager = manager;
@@ -93,7 +94,6 @@ namespace ArtDock.Networking
             BindEvents();
         }
 
-        /// <summary> Applies approval, scene management and timeout settings before starting the transport </summary>
         private void ConfigureNetwork()
         {
             manager.NetworkConfig.ConnectionApproval = true;
@@ -103,7 +103,6 @@ namespace ArtDock.Networking
             manager.NetworkConfig.LoadSceneTimeOut = Mathf.CeilToInt(settings.SceneLoadTimeout);
         }
 
-        /// <summary> Connects network lifecycle and platform events to the session coordinator </summary>
         private void BindEvents()
         {
             manager.ConnectionApprovalCallback += approval.Approve;
@@ -117,7 +116,6 @@ namespace ArtDock.Networking
             platforms.ConnectionLost += OnConnectionLost;
         }
 
-        /// <summary> Cancels pending work, removes subscriptions and shuts down the current connection </summary>
         public void Dispose()
         {
             if (disposed) return;
@@ -147,12 +145,9 @@ namespace ArtDock.Networking
             approval.Clear();
         }
 
-        /// <summary> Starts a host attempt with the requested title, capacity and visibility </summary>
         public Task<bool> Host(string title, int capacity, bool isPrivate) => Start(true, title, capacity, isPrivate);
-        /// <summary> Starts a client attempt using the selected connection platform </summary>
         public Task<bool> Join(string address) => Start(false, address, settings.MaxPlayers, false);
         
-        /// <summary> Requests an arena load when the host and player roster are ready </summary>
         public void StartGame()
         {
             if (CanStartGame) scenes.StartGame();
@@ -163,10 +158,8 @@ namespace ArtDock.Networking
             if (CanInvite && platform is ILobbyPlatform lobby) lobby.InviteFriends();
         }
 
-        /// <summary> Disconnects another client at the host request </summary>
         public void Kick(ulong client)
         {
-            // The host can kick only another connected player
             if (State != SessionState.Connected || !IsHost || client == manager.LocalClientId ||
                 !manager.ConnectedClients.ContainsKey(client)) return;
 
@@ -184,7 +177,6 @@ namespace ArtDock.Networking
 
         private void OnSceneChanged() => Changed?.Invoke();
 
-        /// <summary> Queues an external invitation and stops the current session before joining </summary>
         private void OnJoinRequested(ConnectionMode mode, string address)
         {
             if (disposed || string.IsNullOrWhiteSpace(address)) return;
@@ -195,7 +187,6 @@ namespace ArtDock.Networking
             if (State != SessionState.Offline) Stop(GameConstants.Disconnected);
         }
 
-        /// <summary> Starts a queued invitation only after shutdown completes and the menu is ready </summary>
         private void JoinPendingLobby()
         {
             if (State != SessionState.Offline || pendingJoin == null || !scenes.MenuReady) return;
@@ -206,7 +197,6 @@ namespace ArtDock.Networking
             _ = Join(address);
         }
 
-        /// <summary> Closes admission and the lobby before shutting down the network transport </summary>
         public void Stop(string reason = "")
         {
             if (disposed || State == SessionState.Stopping || State == SessionState.Offline)
@@ -225,16 +215,12 @@ namespace ArtDock.Networking
             Changed?.Invoke();
         }
 
-        /// <summary> Updates platform events, connection deadlines, presence and deferred shutdown work </summary>
         public void Tick()
         {
             if (disposed) return;
             platforms.Tick();
             
-            // Use separate deadlines for platform preparation and scene synchronization
-            if (State == SessionState.Preparing && attempt.PreparationTimedOut ||
-                State == SessionState.Connecting && (scenes.Synchronizing ? scenes.SynchronizationTimedOut : attempt.ConnectionTimedOut))
-                Stop(GameErrors.ConnectionTimedOut);
+            if (ConnectionTimedOut()) Stop(GameErrors.ConnectionTimedOut);
 
             if (State == SessionState.Stopping) TryFinishStop();
             else if (State == SessionState.Connected)
@@ -244,6 +230,14 @@ namespace ArtDock.Networking
             }
 
             JoinPendingLobby();
+        }
+
+        private bool ConnectionTimedOut()
+        {
+            if (State == SessionState.Preparing) return attempt.PreparationTimedOut;
+            if (State != SessionState.Connecting) return false;
+            if (scenes.Synchronizing) return scenes.SynchronizationTimedOut;
+            return attempt.ConnectionTimedOut;
         }
 
         /// <summary> Waits for transport and preparation cleanup before leaving the platform and resetting state </summary>

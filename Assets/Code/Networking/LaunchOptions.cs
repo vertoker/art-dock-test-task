@@ -34,7 +34,6 @@ namespace ArtDock.Networking
             Port = ushort.TryParse(portSrc, out var port) && port != 0 ? port : settings.Port;
         }
 
-        /// <summary> Reads an argument value or returns its default </summary>
         private static string Argument(string[] args, string key, string fallback)
         {
             var index = Array.IndexOf(args, key);

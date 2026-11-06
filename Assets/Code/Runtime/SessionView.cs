@@ -26,6 +26,9 @@ namespace ArtDock.Runtime
         private UIDocument document;
 
         private VisualElement root;
+        private VisualElement playersPanel;
+        private VisualElement diagnosticsPanel;
+        private Label interactionLabel;
         private SessionMenuView menu;
         private SessionConnectionsView connections;
         private SessionDiagnosticsView diagnosticsView;
@@ -41,11 +44,9 @@ namespace ArtDock.Runtime
         private bool cursorBeforeOverlay;
         private float refreshAt;
 
-        /// <summary> The arena is loaded and the network world has entered gameplay </summary>
         private bool Playing => session.Connected && session.World && session.World.Phase.Value == SessionPhase.Playing &&
             !session.Loading && SceneManager.GetActiveScene().name == GameConstants.ArenaScene;
 
-        /// <summary> Receives dependencies and binds the document if it has already started </summary>
         [Inject]
         public void Construct(SessionService session, LanDiscovery discovery, NetworkManager manager,
             NetworkContext context, IGameText text, GameSettings settings)
@@ -71,7 +72,6 @@ namespace ArtDock.Runtime
             if (started) Bind();
         }
 
-        /// <summary> Creates views and subscriptions once the UI Toolkit document is ready </summary>
         private void Bind()
         {
             if (bound || session == null) return;
@@ -79,6 +79,10 @@ namespace ArtDock.Runtime
             document = GetComponent<UIDocument>();
             root = document.rootVisualElement;
             if (root?.panel == null || root.Q("screen") == null) return;
+
+            playersPanel = root.Q("players-panel");
+            diagnosticsPanel = root.Q("diagnostics");
+            interactionLabel = root.Q<Label>("interaction");
 
             menu = new SessionMenuView(root, session, discovery, text, settings, menu);
             connections = new SessionConnectionsView(root, session, discovery, text, connections);
@@ -96,7 +100,6 @@ namespace ArtDock.Runtime
             Refresh();
         }
 
-        /// <summary> Binds document buttons to session and view commands </summary>
         private void BindButtons()
         {
             BindButton("invite", () => connections.ToggleFriends(menu.JoiningSteam));
@@ -107,7 +110,7 @@ namespace ArtDock.Runtime
 
             BindButton("back", menu.Back);
             BindButton("host", menu.Host);
-            BindButton("join", () => _ = session.Join(root.Q<TextField>("address").value));
+            BindButton("join", menu.Join);
             BindButton("search", connections.ToggleSearch);
             BindButton("start", session.StartGame);
 
@@ -117,7 +120,6 @@ namespace ArtDock.Runtime
             BindButton("author", () => Application.OpenURL(settings.Launch.AuthorUrl));
         }
 
-        /// <summary> Subscribes a button without keyboard focus and stores its callback for removal </summary>
         private void BindButton(string name, Action callback)
         {
             var button = root.Q<Button>(name);
@@ -127,7 +129,6 @@ namespace ArtDock.Runtime
             callbacks.Add((button, callback));
         }
 
-        /// <summary> Changes the platform and refreshes the available connections </summary>
         private void SelectMode(ConnectionMode mode)
         {
             if (!menu.SelectMode(mode)) return;
@@ -136,7 +137,6 @@ namespace ArtDock.Runtime
             Refresh();
         }
 
-        /// <summary> Changes cursor capture and local gameplay input availability </summary>
         private void SetCursor(bool free)
         {
             session.CursorFree = free;
@@ -144,7 +144,6 @@ namespace ArtDock.Runtime
             Cursor.visible = free;
         }
 
-        /// <summary> Stops Play Mode in the editor or closes the standalone application </summary>
         private static void Quit()
         {
 #if UNITY_EDITOR
@@ -154,7 +153,6 @@ namespace ArtDock.Runtime
 #endif
         }
 
-        /// <summary> Handles gameplay transitions, input and periodic interface refreshes </summary>
         private void Update()
         {
             if (bound && root != document.rootVisualElement) Unbind();
@@ -175,7 +173,6 @@ namespace ArtDock.Runtime
             Refresh();
         }
 
-        /// <summary> Handles the overlay, pause and gameplay panel shortcuts </summary>
         private void HandleKeyboard(bool playing)
         {
             UpdateOverlay(playing);
@@ -183,7 +180,7 @@ namespace ArtDock.Runtime
             var keyboard = Keyboard.current;
             if (keyboard == null || !Application.isFocused || session.OverlayOpen)
             {
-                Show("players-panel", false);
+                Show(playersPanel, false);
                 return;
             }
 
@@ -191,11 +188,10 @@ namespace ArtDock.Runtime
             if (keyboard.f3Key.wasPressedThisFrame) diagnostics = !diagnostics;
 
             var shift = keyboard.leftShiftKey.isPressed || keyboard.rightShiftKey.isPressed;
-            Show("players-panel", playing && !session.CursorFree && keyboard.tabKey.isPressed && !shift);
-            Show("diagnostics", diagnostics);
+            Show(playersPanel, playing && !session.CursorFree && keyboard.tabKey.isPressed && !shift);
+            Show(diagnosticsPanel, diagnostics);
         }
 
-        /// <summary> Releases the cursor for the overlay and restores its previous state when the overlay closes </summary>
         private void UpdateOverlay(bool playing)
         {
             if (session.OverlayOpen == overlayWasOpen) return;
@@ -210,7 +206,6 @@ namespace ArtDock.Runtime
             overlayWasOpen = session.OverlayOpen;
         }
 
-        /// <summary> Toggles pause with Escape during gameplay </summary>
         private void HandlePause(Keyboard keyboard, bool playing)
         {
             if (!playing || !keyboard.escapeKey.wasPressedThisFrame) return;
@@ -219,7 +214,6 @@ namespace ArtDock.Runtime
             Refresh();
         }
 
-        /// <summary> Refreshes panels, player lists, connections, interaction hints and diagnostics </summary>
         private void Refresh()
         {
             if (!bound) return;
@@ -233,12 +227,12 @@ namespace ArtDock.Runtime
             connections.RefreshFriends(menu.JoiningSteam);
 
             context.Players.TryGetValue(manager.LocalClientId, out var local);
-            root.Q<Label>("interaction").text = local ? local.InteractionHint : string.Empty;
-            Show("interaction", local && !string.IsNullOrEmpty(local.InteractionHint));
+            interactionLabel.text = local ? local.InteractionHint : string.Empty;
+            Show(interactionLabel, local && !string.IsNullOrEmpty(local.InteractionHint));
             if (diagnostics) diagnosticsView.Refresh(local);
         }
 
-        private void Show(string name, bool visible) => root.Q(name).style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
+        private static void Show(VisualElement element, bool visible) => element.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
 
         /// <summary> Reserves Tab for the player list and Steam by suppressing UI Toolkit focus navigation </summary>
         private void OnKeyDown(KeyDownEvent evt)
@@ -249,7 +243,6 @@ namespace ArtDock.Runtime
             evt.StopImmediatePropagation();
         }
 
-        /// <summary> Prevents UI Toolkit navigation from moving focus to adjacent elements </summary>
         private void OnNavigationMove(NavigationMoveEvent evt)
         {
             if (evt.direction is not (NavigationMoveEvent.Direction.Next or NavigationMoveEvent.Direction.Previous)) return;
@@ -260,7 +253,6 @@ namespace ArtDock.Runtime
 
         private void OnDisable() => Unbind();
 
-        /// <summary> Removes subscriptions and button callbacks when the document is disabled or replaced </summary>
         private void Unbind()
         {
             if (!bound) return;

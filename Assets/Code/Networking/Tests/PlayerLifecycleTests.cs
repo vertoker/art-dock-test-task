@@ -24,17 +24,17 @@ namespace ArtDock.Tests
             try
             {
                 for (ulong id = 0; id < 4; id++)
-                    context.SetName(id, "Player");
+                    context.RegisterClient(id, "Player");
                 var hostPosition = context.SpawnPositionFor(0);
                 var vacantPosition = context.SpawnPositionFor(2);
                 
-                context.Remove(2);
-                context.SetName(4, "Reconnected Player");
+                context.ReleaseClient(2);
+                context.RegisterClient(4, "Reconnected Player");
                 Assert.That(context.SpawnPositionFor(4), Is.EqualTo(vacantPosition));
                 Assert.That(context.SpawnPositionFor(4), Is.Not.EqualTo(hostPosition));
                 
-                context.Clear();
-                context.SetName(ulong.MaxValue, "Next Session");
+                context.ClearClientData();
+                context.RegisterClient(ulong.MaxValue, "Next Session");
                 Assert.That(context.SpawnPositionFor(ulong.MaxValue), Is.EqualTo(hostPosition));
             }
             finally

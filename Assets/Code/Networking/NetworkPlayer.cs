@@ -46,7 +46,6 @@ namespace ArtDock.Networking
                               context.Session.State == SessionState.Connected && !context.Session.Loading && context.World.IsReady(OwnerClientId);
         private bool Playing => context.World && context.World.Phase.Value == SessionPhase.Playing;
 
-        /// <summary> Initializes local controls and server validation, then registers the player </summary>
         public override void OnNetworkSpawn()
         {
             context = NetworkManager.GetComponent<NetworkContext>();
@@ -70,7 +69,6 @@ namespace ArtDock.Networking
             SetPresentation(false);
         }
 
-        /// <summary> Updates player presentation and runs local input or server validation for the active role </summary>
         private void Update()
         {
             if (!IsSpawned) return;
@@ -83,7 +81,6 @@ namespace ArtDock.Networking
             if (IsServer) UpdateServerPosition();
         }
 
-        /// <summary> Enables the local camera or remote body when gameplay becomes available </summary>
         private void SetPresentation(bool active)
         {
             var enableLocal = active && IsOwner;
@@ -98,7 +95,6 @@ namespace ArtDock.Networking
             if (IsOwner) SetCursor(enableLocal && Application.isFocused && !context.InputBlocked && !context.Session.OverlayOpen);
         }
 
-        /// <summary> Handles cursor capture and local controls while respecting pause and overlay input blocking </summary>
         private void UpdateLocalPlayer()
         {
             var keyboard = Keyboard.current;
@@ -118,7 +114,6 @@ namespace ArtDock.Networking
             if (acceptInput && wasLocked && keyboard != null && mouse != null) interaction.Tick(keyboard, mouse);
         }
 
-        /// <summary> Checks incoming position state and corrects or respawns the player when needed </summary>
         private void UpdateServerPosition()
         {
             if (networkTransform.HasInvalidState)
@@ -128,7 +123,6 @@ namespace ArtDock.Networking
                 return;
             }
 
-            // Return the player to their spawn position outside the arena or inside a reset region
             if (PlayerValidation.OutsideBounds(transform.position, context.Settings) || context.InResetZone(transform.position))
             {
                 Respawn();
@@ -138,7 +132,6 @@ namespace ArtDock.Networking
             if (!validation.TryMove(transform.position, Time.unscaledDeltaTime)) CorrectPosition();
         }
 
-        /// <summary> Returns the owner to the last trusted position with a correction cooldown </summary>
         private void CorrectPosition()
         {
             if (Time.unscaledTime < nextCorrection) return;
@@ -147,20 +140,18 @@ namespace ArtDock.Networking
             MoveOwner(validation.TrustedPosition);
         }
 
-        /// <summary> Releases the held item and moves the player to their assigned spawn position </summary>
         private void Respawn()
         {
             if (Time.unscaledTime < nextRespawn) return;
             
             nextRespawn = Time.unscaledTime + context.Settings.Player.RespawnCooldown;
-            HeldItem?.ReleaseDisconnected(OwnerClientId);
+            HeldItem?.ReleaseIfHeldBy(OwnerClientId);
             var position = context.SpawnPositionFor(OwnerClientId);
 
             validation.Reset(position);
             MoveOwner(position);
         }
 
-        /// <summary> Moves the server object and requests a matching teleport from its owner </summary>
         private void MoveOwner(Vector3 position)
         {
             var wasEnabled = controller.enabled;
@@ -171,7 +162,6 @@ namespace ArtDock.Networking
             TeleportOwnerRpc(position);
         }
 
-        /// <summary> Corrects the owner's position and clears accumulated local movement </summary>
         [Rpc(SendTo.Owner, InvokePermission = RpcInvokePermission.Server)]
         private void TeleportOwnerRpc(Vector3 position)
         {
@@ -186,7 +176,6 @@ namespace ArtDock.Networking
 
         private void OnColorChanged(byte previous, byte current) => ApplyColor(current);
 
-        /// <summary> Applies player color through MaterialPropertyBlock while keeping the shared material </summary>
         private void ApplyColor(byte index)
         {
             var palette = context.Settings.Player.Palette;
@@ -204,7 +193,6 @@ namespace ArtDock.Networking
             if (IsOwner) ChangeColorRpc();
         }
 
-        /// <summary> Changes color on the server with a request cooldown </summary>
         [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
         private void ChangeColorRpc()
         {
@@ -222,7 +210,6 @@ namespace ArtDock.Networking
             if (IsOwner) context.Statistics?.ConfirmThrow();
         }
 
-        /// <summary> Checks player readiness and consumes the item action cooldown </summary>
         public bool TryConsumeItemAction()
         {
             if (!CanAct || Time.unscaledTime < nextItemAction) return false;
@@ -241,7 +228,6 @@ namespace ArtDock.Networking
             if (IsOwner) UseButtonRpc(id);
         }
 
-        /// <summary> Activates a world button after checking the server spawn cooldown </summary>
         [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
         private void UseButtonRpc(int id)
         {
@@ -249,7 +235,6 @@ namespace ArtDock.Networking
                 context.UseButton(id, this);
         }
 
-        /// <summary> Checks player readiness and consumes the shared item spawn cooldown </summary>
         private bool TryConsumeSpawn()
         {
             if (!CanAct || Time.unscaledTime < nextSpawn) return false;
@@ -258,14 +243,12 @@ namespace ArtDock.Networking
             return true;
         }
 
-        /// <summary> Creates an item for its owner using the shared spawn cooldown </summary>
         [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
         private void SpawnItemRpc(RpcParams rpc = default)
         {
             if (rpc.Receive.SenderClientId == OwnerClientId && TryConsumeSpawn()) ItemSpawner.TrySpawnForPlayer(this);
         }
 
-        /// <summary> Validates aim on the server and replicates it to other clients </summary>
         [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner, Delivery = RpcDelivery.Unreliable)]
         private void AimRpc(Vector3 direction)
         {
@@ -280,11 +263,10 @@ namespace ArtDock.Networking
             Cursor.visible = !locked;
         }
 
-        /// <summary> Releases held items, removes the player from the context and disables local presentation </summary>
         public override void OnNetworkDespawn()
         {
             ColorIndex.OnValueChanged -= OnColorChanged;
-            HeldItem?.ReleaseDisconnected(OwnerClientId);
+            HeldItem?.ReleaseIfHeldBy(OwnerClientId);
             context.UnregisterPlayer(this);
 
             SetPresentation(false);

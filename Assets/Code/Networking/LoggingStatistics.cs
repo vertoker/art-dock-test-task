@@ -27,7 +27,6 @@ namespace ArtDock.Networking
         {
             if (pending == 0) return;
 
-            // Check the achievement threshold against the total confirmed throw count
             var achievement = total >= settings.Statistics.AchievementThreshold
                 ? text[TextKeys.AchievementReached] : text[TextKeys.AchievementPending];
             

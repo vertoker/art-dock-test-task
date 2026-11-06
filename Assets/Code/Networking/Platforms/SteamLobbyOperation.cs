@@ -18,7 +18,6 @@ namespace ArtDock.Networking.Platforms
         public bool Busy => running || !cleanup.IsCompleted;
         public string Error { get; private set; } = string.Empty;
 
-        /// <summary> Waits for one native lobby request with cancellation and a bounded deadline </summary>
         public async Task<Lobby?> Run(Func<Task<Lobby?>> begin, float timeout, CancellationToken token)
         {
             Error = string.Empty;
@@ -58,7 +57,6 @@ namespace ArtDock.Networking.Platforms
             }
         }
 
-        /// <summary> Invalidates the current request and cancels its local wait </summary>
         public void Cancel()
         {
             generation++;

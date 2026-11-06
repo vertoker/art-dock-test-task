@@ -22,7 +22,6 @@ namespace ArtDock.Networking
             RoundTripMs = -1;
         }
 
-        /// <summary> Serializes the client ID, name, loading status and application RTT </summary>
         public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
         {
             serializer.SerializeValue(ref ClientId);
@@ -31,7 +30,6 @@ namespace ArtDock.Networking
             serializer.SerializeValue(ref RoundTripMs);
         }
 
-        /// <summary> Compares every serialized field so the network list detects player data changes </summary>
         public bool Equals(SessionPlayer other)
             => ClientId == other.ClientId && playerName.Equals(other.playerName) && IsLoaded == other.IsLoaded && RoundTripMs == other.RoundTripMs;
     }

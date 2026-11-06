@@ -13,7 +13,6 @@ namespace ArtDock.Networking
         public string Hint { get; private set; } = string.Empty;
         public PlayerInteraction(NetworkPlayer player) => this.player = player;
 
-        /// <summary> Updates the selected target and handles item actions </summary>
         public void Tick(Keyboard keyboard, Mouse mouse)
         {
             UpdateSelection();
@@ -24,14 +23,12 @@ namespace ArtDock.Networking
             else UseSelection(mouse);
         }
 
-        /// <summary> Handles keyboard shortcuts for item creation and color changes </summary>
         private void HandleShortcuts(Keyboard keyboard)
         {
             if (keyboard.nKey.wasPressedThisFrame) player.RequestSpawn();
             if (keyboard.cKey.wasPressedThisFrame) player.RequestColorChange();
         }
 
-        /// <summary> Sends delete, throw or drop commands with the held item's current revision </summary>
         private void HandleHeldItem(NetworkItem held, Keyboard keyboard, Mouse mouse)
         {
             var revision = held.State.Value.Revision;
@@ -40,7 +37,6 @@ namespace ArtDock.Networking
             else if (mouse.leftButton.wasPressedThisFrame) held.ReleaseRpc(revision, false, Vector3.zero);
         }
 
-        /// <summary> Activates the selected button or grabs the selected item on a left click </summary>
         private void UseSelection(Mouse mouse)
         {
             if (!mouse.leftButton.wasPressedThisFrame) return;
@@ -49,7 +45,6 @@ namespace ArtDock.Networking
             else if (SelectedItem) SelectedItem.GrabRpc(SelectedItem.State.Value.Revision);
         }
 
-        /// <summary> Finds the item or world button under the local camera crosshair </summary>
         private void UpdateSelection()
         {
             var camera = player.ViewCamera.transform;
@@ -61,7 +56,6 @@ namespace ArtDock.Networking
             Hint = GetHint();
         }
 
-        /// <summary> Chooses a hint from the held item and the current crosshair target </summary>
         private string GetHint()
         {
             var text = player.Context.Text;

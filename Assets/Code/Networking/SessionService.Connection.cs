@@ -9,10 +9,8 @@ namespace ArtDock.Networking
 {
     public partial class SessionService
     {
-        /// <summary> Prepares the selected platform and starts NGO for the current connection attempt </summary>
         private async Task<bool> Start(bool host, string address, int capacity, bool isPrivate)
         {
-            // Start a new attempt only after the previous session has fully stopped
             if (disposed || State != SessionState.Offline || manager.ShutdownInProgress || manager.IsListening)
                 return false;
 
@@ -33,7 +31,6 @@ namespace ArtDock.Networking
             }
         }
 
-        /// <summary> Sets preparing state and bounds the new session title and capacity </summary>
         private SessionAttempt BeginAttempt(bool host, string address, int capacity)
         {
             State = SessionState.Preparing;
@@ -45,14 +42,12 @@ namespace ArtDock.Networking
             return attempt = new SessionAttempt(settings.ConnectionTimeout);
         }
 
-        /// <summary> Selects the platform and starts cancellable host or client preparation </summary>
         private Task<bool> PreparePlatform(SessionAttempt current, bool host, string address, bool isPrivate)
         {
             platform = platforms.For(Mode);
             return current.Prepare(platform, host, Title, Capacity, isPrivate, address);
         }
 
-        /// <summary> Rejects stale or canceled preparation results before starting the transport </summary>
         private bool ValidatePreparation(SessionAttempt current, CancellationToken token, bool ready)
         {
             if (!IsCurrent(current)) return false;
@@ -64,7 +59,6 @@ namespace ArtDock.Networking
             return false;
         }
 
-        /// <summary> Builds the handshake, starts the transport and creates the host world </summary>
         private bool StartNetwork(SessionAttempt current, bool host)
         {
             if (!approval.TryCreatePayload(platform, out var payload, out var error))
@@ -91,7 +85,6 @@ namespace ArtDock.Networking
             return true;
         }
 
-        /// <summary> Ends only the current attempt and reports its timeout or exception </summary>
         private void HandleStartFailure(SessionAttempt current, Exception exception)
         {
             if (!IsCurrent(current)) return;
@@ -109,7 +102,6 @@ namespace ArtDock.Networking
         private bool IsCurrent(SessionAttempt current)
             => !disposed && attempt == current && State != SessionState.Stopping;
 
-        /// <summary> Completes the local connection attempt and notifies interface subscribers </summary>
         private void OnConnected(ulong client)
         {
             if (client == manager.LocalClientId && State == SessionState.Connecting)
@@ -121,7 +113,6 @@ namespace ArtDock.Networking
             Changed?.Invoke();
         }
 
-        /// <summary> Releases departed players and stops the session when the local client loses its connection </summary>
         private void OnDisconnected(ulong client)
         {
             if (manager.IsServer)
@@ -129,13 +120,11 @@ namespace ArtDock.Networking
                 approval.Remove(client);
             }
             
-            // Losing the local client or host ends the local session
             if (State != SessionState.Stopping && State != SessionState.Offline &&
                 (client == manager.LocalClientId || !manager.IsServer && client == NetworkManager.ServerClientId))
             {
                 var reason = manager.DisconnectReason;
                 
-                // Replace transport status messages with a readable disconnect reason
                 if (string.IsNullOrWhiteSpace(reason) || reason.StartsWith(GameConstants.TransportDisconnectPrefix, StringComparison.Ordinal))
                     reason = State == SessionState.Connecting ? GameErrors.ConnectionTimedOutOrRejected : GameErrors.HostConnectionLost;
                 

@@ -8,10 +8,8 @@ namespace ArtDock.Networking
     {
         private bool spawned;
 
-        /// <summary> Creates pyramid rows once through the shared server spawner </summary>
         public void SpawnInitialItems(NetworkContext context)
         {
-            // Only the server creates the pyramid, and repeated calls add nothing
             if (spawned || !context.GetComponent<NetworkManager>().IsServer) return;
 
             spawned = true;
@@ -23,7 +21,6 @@ namespace ArtDock.Networking
                 var columns = settings.PyramidRows - row;
                 for (var column = 0; column < columns; column++)
                 {
-                    // Center each row relative to the pyramid base
                     var position = settings.PyramidOrigin + new Vector3(
                         (column - (columns - 1) * 0.5f) * settings.PyramidSpacing,
                         row * settings.PyramidSpacing + size * 0.5f + settings.PyramidGroundGap, 0);

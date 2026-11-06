@@ -21,7 +21,6 @@ namespace ArtDock.Runtime
             this.text = text;
         }
 
-        /// <summary> Updates local player diagnostics while leaving unavailable metrics without values </summary>
         public void Refresh(NetworkPlayer local)
         {
             var item = local ? local.HeldItem : null;
@@ -39,7 +38,6 @@ namespace ArtDock.Runtime
                 item ? item.State.Value.Revision.ToString() : unavailable);
         }
 
-        /// <summary> Returns the latest local player application RTT or an unavailable label </summary>
         private string RoundTrip()
         {
             if (session.World)

@@ -1,73 +1,73 @@
-<ui:UXML xmlns:ui="UnityEngine.UIElements">
-    <Style src="Style.uss" />
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="project://database/Assets/UI/Style.uss?fileID=7433441132597879392&amp;guid=cc9b90732745a8444b5088eb9221134b&amp;type=3#Style"/>
     <ui:VisualElement name="screen">
-        <ui:VisualElement name="menu" class="panel">
-            <ui:Label name="game-title" class="heading game-title" />
+        <ui:VisualElement name="menu" class="panel" style="display: none;">
+            <ui:Label name="game-title" class="heading game-title"/>
             <ui:VisualElement name="home">
-                <ui:Button name="open-host" class="primary" />
-                <ui:Button name="open-join" />
-                <ui:Button name="quit" class="quiet" />
+                <ui:Button name="open-host" class="primary"/>
+                <ui:Button name="open-join"/>
+                <ui:Button name="quit" class="quiet"/>
             </ui:VisualElement>
             <ui:VisualElement name="connection">
-            <ui:VisualElement class="row choices">
-                <ui:Button name="mode-steam" />
-                <ui:Button name="mode-lan" />
-            </ui:VisualElement>
+                <ui:VisualElement class="row choices">
+                    <ui:Button name="mode-steam"/>
+                    <ui:Button name="mode-lan"/>
+                </ui:VisualElement>
             </ui:VisualElement>
             <ui:VisualElement name="host-form">
-                <ui:TextField name="title" />
-                <ui:IntegerField name="capacity" value="4" />
-                <ui:Toggle name="private" />
-                <ui:Button name="host" class="primary" />
+                <ui:TextField name="title"/>
+                <ui:IntegerField name="capacity" value="4"/>
+                <ui:Toggle name="private"/>
+                <ui:Button name="host" class="primary"/>
             </ui:VisualElement>
             <ui:VisualElement name="join-form">
-            <ui:Label name="address-label" class="muted" />
-            <ui:TextField name="address" />
-            <ui:Button name="join" class="primary" />
-            <ui:VisualElement name="steam-friends">
-                <ui:Label name="steam-friends-heading" class="muted" />
-                <ui:ScrollView name="steam-friends-list" style="max-height: 160px;" />
+                <ui:Label name="address-label" class="muted"/>
+                <ui:TextField name="address"/>
+                <ui:Button name="join" class="primary"/>
+                <ui:VisualElement name="steam-friends">
+                    <ui:Label name="steam-friends-heading" class="muted"/>
+                    <ui:ScrollView name="steam-friends-list" style="max-height: 160px;"/>
+                </ui:VisualElement>
+                <ui:VisualElement name="lan">
+                    <ui:Button name="search" class="quiet"/>
+                    <ui:Label name="lan-status" class="muted"/>
+                    <ui:ScrollView name="hosts"/>
+                </ui:VisualElement>
             </ui:VisualElement>
-            <ui:VisualElement name="lan">
-                <ui:Button name="search" class="quiet" />
-                <ui:Label name="lan-status" class="muted" />
-                <ui:ScrollView name="hosts" />
-            </ui:VisualElement>
-            </ui:VisualElement>
-            <ui:Button name="back" class="quiet" />
-            <ui:Label name="message" class="status" />
+            <ui:Button name="back" class="quiet"/>
+            <ui:Label name="message" class="status"/>
         </ui:VisualElement>
-        <ui:VisualElement name="session" class="panel">
-            <ui:Label name="session-heading" class="heading" />
-            <ui:Label name="lobby-id" class="muted" selectable="true" />
-            <ui:VisualElement name="players" class="player-list" />
-            <ui:Button name="start" class="primary" />
-            <ui:Label name="waiting" class="muted" />
-            <ui:Button name="resume" class="primary" />
-            <ui:Button name="invite" class="quiet" />
+        <ui:VisualElement name="session" class="panel" style="display: none;">
+            <ui:Label name="session-heading" class="heading"/>
+            <ui:Label name="lobby-id" selectable="true" class="muted"/>
+            <ui:VisualElement name="players" class="player-list"/>
+            <ui:Button name="start" class="primary"/>
+            <ui:Label name="waiting" class="muted"/>
+            <ui:Button name="resume" class="primary"/>
+            <ui:Button name="invite" class="quiet"/>
             <ui:VisualElement name="invite-friends">
-                <ui:Label name="invite-friends-heading" class="muted" style="white-space: normal;" />
-                <ui:ScrollView name="invite-friends-list" style="max-height: 160px;" />
+                <ui:Label name="invite-friends-heading" class="muted" style="white-space: normal;"/>
+                <ui:ScrollView name="invite-friends-list" style="max-height: 160px;"/>
             </ui:VisualElement>
-            <ui:Button name="leave" class="quiet" />
+            <ui:Button name="leave" class="quiet"/>
         </ui:VisualElement>
-        <ui:Button name="author" class="quiet" />
-        <ui:VisualElement name="players-panel" class="panel players-panel">
-            <ui:Label name="players-heading" class="heading" />
-            <ui:VisualElement name="scoreboard-players" />
+        <ui:Button name="author" class="quiet" style="display: none;"/>
+        <ui:VisualElement name="players-panel" class="panel players-panel" style="display: none;">
+            <ui:Label name="players-heading" class="heading"/>
+            <ui:VisualElement name="scoreboard-players"/>
         </ui:VisualElement>
-        <ui:VisualElement name="loading" class="panel">
-            <ui:Label name="loading-heading" class="heading" />
-            <ui:Label name="loading-status" />
+        <ui:VisualElement name="loading" class="panel" style="display: none;">
+            <ui:Label name="loading-heading" class="heading"/>
+            <ui:Label name="loading-status"/>
         </ui:VisualElement>
-        <ui:VisualElement name="hud" picking-mode="Ignore">
-            <ui:Label name="crosshair" picking-mode="Ignore" />
-            <ui:Label name="interaction" picking-mode="Ignore" />
-            <ui:Label name="controls" picking-mode="Ignore" />
+        <ui:VisualElement name="hud" picking-mode="Ignore" style="display: none;">
+            <ui:Label name="crosshair" picking-mode="Ignore"/>
+            <ui:Label name="interaction" picking-mode="Ignore"/>
+            <ui:Label name="controls" picking-mode="Ignore"/>
         </ui:VisualElement>
-        <ui:VisualElement name="diagnostics" class="panel diagnostics" picking-mode="Ignore">
-            <ui:Label name="network-heading" class="heading" />
-            <ui:Label name="diagnostics-text" />
+        <ui:VisualElement name="diagnostics" picking-mode="Ignore" class="panel diagnostics" style="display: none;">
+            <ui:Label name="network-heading" class="heading"/>
+            <ui:Label name="diagnostics-text"/>
         </ui:VisualElement>
     </ui:VisualElement>
 </ui:UXML>

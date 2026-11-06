@@ -45,7 +45,6 @@ namespace ArtDock.Networking.Platforms
             }
         }
 
-        /// <summary> Selects the LAN transport and listens on the configured port </summary>
         public Task<bool> PrepareHost(string title, int capacity, bool isPrivate, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -57,7 +56,6 @@ namespace ArtDock.Networking.Platforms
             return Task.FromResult(true);
         }
 
-        /// <summary> Validates the IPv4 address and port before configuring the client transport </summary>
         public Task<bool> PrepareJoin(string address, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -74,7 +72,6 @@ namespace ArtDock.Networking.Platforms
             return Task.FromResult(true);
         }
 
-        /// <summary> Parses IPv4 with an optional port, falling back to the launch port </summary>
         private bool TryParseAddress(string address, out IPAddress ip, out ushort port)
         {
             var parts = (address ?? string.Empty).Trim().Split(':');

@@ -53,9 +53,7 @@ namespace ArtDock.Core
         public event Action<string> JoinRequested;
         public event Action<ConnectionMode, string> ConnectionLost;
         
-        /// <summary> Prepares the platform to host a session with the given capacity and visibility </summary>
         public Task<bool> PrepareHost(string title, int capacity, bool isPrivate, CancellationToken cancellationToken);
-        /// <summary> Prepares the platform to join an IP address or lobby ID </summary>
         public Task<bool> PrepareJoin(string address, CancellationToken cancellationToken);
         
         public void Tick();

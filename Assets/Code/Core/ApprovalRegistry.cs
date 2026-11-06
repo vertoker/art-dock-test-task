@@ -6,26 +6,18 @@ namespace ArtDock.Core
     /// <summary> Result of validating a player before connection </summary>
     public enum ApprovalResult : byte
     {
-        /// <summary> The player passed validation and reserved a session slot </summary>
         Approved = 0,
-        /// <summary> The client protocol differs from the host protocol </summary>
         VersionMismatch = 1,
-        /// <summary> The player identity is empty or too long </summary>
         InvalidIdentity = 2,
-        /// <summary> The client or player identity is already registered </summary>
         DuplicateIdentity = 3,
-        /// <summary> The session has no free slots </summary>
         SessionFull = 4,
     }
 
     /// <summary> Checks protocol and player identities, reserving slots before network objects are created </summary>
     public class ApprovalRegistry
     {
-        /// <summary> Maximum number of players in the session </summary>
         private readonly int capacity;
-        /// <summary> Protocol version accepted by the host </summary>
         private readonly string version;
-        /// <summary> Maximum player identity length </summary>
         private readonly int maxIdentityLength;
         
         /// <summary> Reserved slots mapped from network clients to player identities </summary>

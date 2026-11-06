@@ -21,7 +21,6 @@ namespace ArtDock.Networking
             Reset(position);
         }
 
-        /// <summary> Accepts a finite position only when its displacement fits the movement budget </summary>
         public bool TryMove(Vector3 position, float elapsed)
         {
             var distance = Vector3.Distance(TrustedPosition, position);
@@ -30,7 +29,6 @@ namespace ArtDock.Networking
             return PositionValid;
         }
 
-        /// <summary> Accepts a finite unit aim direction at the allowed update rate </summary>
         public bool TryAim(Vector3 direction, float now)
         {
             if (!float.IsFinite(now) || now < nextAim || !Finite(direction) ||
@@ -40,7 +38,6 @@ namespace ArtDock.Networking
             return true;
         }
 
-        /// <summary> Sets a trusted position and resets the movement budget after respawn </summary>
         public void Reset(Vector3 position)
         {
             TrustedPosition = position;
@@ -48,18 +45,15 @@ namespace ArtDock.Networking
             movement.Reset();
         }
 
-        /// <summary> Marks the latest transform state as invalid until correction </summary>
         internal void RejectPosition() => PositionValid = false;
 
-        /// <summary> Places a player in a centered spawn slot using the configured spacing </summary>
-        public static Vector3 SpawnPosition(ulong clientId, GameSettings settings)
+        public static Vector3 SpawnPosition(ulong spawnSlot, GameSettings settings)
         {
-            var slot = (int)(clientId % (ulong)settings.MaxPlayers);
+            var slot = (int)(spawnSlot % (ulong)settings.MaxPlayers);
             var offset = (slot - (settings.MaxPlayers - 1) * 0.5f) * settings.Player.SpawnSpacing;
             return settings.Player.SpawnOrigin + Vector3.right * offset;
         }
 
-        /// <summary> Rejects non-finite positions and positions outside the playable bounds </summary>
         public static bool OutsideBounds(Vector3 position, GameSettings settings)
         {
             var min = settings.Player.MinimumPosition;

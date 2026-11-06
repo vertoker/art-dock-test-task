@@ -14,7 +14,6 @@ namespace ArtDock.Networking
             OnClientRequestChange = RejectClientState;
         }
 
-        /// <summary> Replaces client state requests with the current server Rigidbody state </summary>
         private (Vector3, Quaternion, Vector3) RejectClientState(Vector3 position, Quaternion rotation, Vector3 scale)
         {
             var body = GetComponent<Rigidbody>();

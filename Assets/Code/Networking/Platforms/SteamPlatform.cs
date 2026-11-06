@@ -33,12 +33,10 @@ namespace ArtDock.Networking.Platforms
         public event Action<string> JoinRequested;
         public event Action<ConnectionMode, string> ConnectionLost;
 
-        /// <summary> Returns online Steam friends sorted by name with their available lobby addresses </summary>
         public SessionFriend[] GetFriends()
         {
             if (disposed || !runtime.IsValid) return Array.Empty<SessionFriend>();
 
-            // List online friends and keep lobby addresses for friends playing this game
             var friends = new List<SessionFriend>();
             foreach (var friend in SteamFriends.GetFriends())
             {
@@ -52,7 +50,6 @@ namespace ArtDock.Networking.Platforms
             return friends.ToArray();
         }
 
-        /// <summary> Invites the given Steam friend when the active lobby allows invitations </summary>
         public bool InviteFriend(ulong id)
         {
             if (!CanInvite) return false;
@@ -75,7 +72,6 @@ namespace ArtDock.Networking.Platforms
             runtime.JoinRequested += OnJoinRequested;
         }
 
-        /// <summary> Creates and configures a Steam lobby before selecting the host transport </summary>
         public async Task<bool> PrepareHost(string title, int capacity, bool isPrivate, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -83,11 +79,9 @@ namespace ArtDock.Networking.Platforms
 
             try
             {
-                // Wait for lobby creation within the connection timeout
                 var created = await operation.Run(() => SteamMatchmaking.CreateLobbyAsync(capacity), settings.ConnectionTimeout, cancellationToken);
                 if (!created.HasValue) return FailOperation(GameErrors.SteamLobbyCreationFailed);
 
-                // Configure lobby access and metadata before selecting the host transport
                 if (!lobby.HostLobby(created.Value, title, capacity, isPrivate))
                     return Fail(GameErrors.SteamLobbyConfigurationFailed);
                 
@@ -100,21 +94,17 @@ namespace ArtDock.Networking.Platforms
             }
         }
 
-        /// <summary> Joins a compatible Steam lobby and selects its original host as the transport target </summary>
         public async Task<bool> PrepareJoin(string address, CancellationToken cancellationToken)
         {
-            // Validate the lobby ID before making a Steam request
             cancellationToken.ThrowIfCancellationRequested();
             if (!SteamLobby.TryParseId(address, out var id)) return Fail(GameErrors.SteamLobbyIdRequired);
             if (!Prepare()) return false;
 
             try
             {
-                // Handle cancellation and leave lobbies returned after the request deadline
                 var joined = await operation.Run(() => SteamMatchmaking.JoinLobbyAsync(id), settings.ConnectionTimeout, cancellationToken);
                 if (!joined.HasValue) return FailOperation(GameErrors.SteamLobbyUnavailable);
 
-                // Check the game, protocol and original lobby owner
                 if (!lobby.JoinLobby(joined.Value))
                     return Fail(GameErrors.SteamLobbyIncompatible);
                 
@@ -127,7 +117,6 @@ namespace ArtDock.Networking.Platforms
             }
         }
 
-        /// <summary> Checks SDK availability and rejects overlapping native lobby requests </summary>
         private bool Prepare()
         {
             Error = string.Empty;
@@ -143,7 +132,6 @@ namespace ArtDock.Networking.Platforms
             return false;
         }
 
-        /// <summary> Creates a fresh transport instance for the next Steam connection </summary>
         private void SelectTransport(ulong host)
         {
             if (transport)
@@ -157,11 +145,9 @@ namespace ArtDock.Networking.Platforms
             manager.NetworkConfig.NetworkTransport = transport;
         }
 
-        /// <summary> Keeps the Steam operation error or uses the fallback message </summary>
         private bool FailOperation(string fallback)
             => Fail(string.IsNullOrEmpty(operation.Error) ? fallback : operation.Error);
 
-        /// <summary> Stores the failure reason and releases the pending Steam session </summary>
         private bool Fail(string error)
         {
             Error = error;
@@ -169,7 +155,6 @@ namespace ArtDock.Networking.Platforms
             return false;
         }
 
-        /// <summary> Updates the Steam SDK and checks connection and original host availability </summary>
         public void Tick()
         {
             if (disposed) return;
@@ -186,7 +171,6 @@ namespace ArtDock.Networking.Platforms
             if (!lobby.HostAvailable) LoseConnection(GameErrors.HostConnectionLost);
         }
 
-        /// <summary> Retries Steam initialization between sessions after a failed attempt </summary>
         private void RetryInitialization()
         {
             if (runtime.IsValid || manager.IsListening || manager.ShutdownInProgress || operation.Busy ||
@@ -206,7 +190,6 @@ namespace ArtDock.Networking.Platforms
             return false;
         }
 
-        /// <summary> Leaves the lobby and notifies the session coordinator of connection loss </summary>
         private void LoseConnection(string error)
         {
             Leave();
@@ -221,7 +204,6 @@ namespace ArtDock.Networking.Platforms
         public void InviteFriends() => lobby.InviteFriends();
         public void CloseLobby() => lobby.Close();
 
-        /// <summary> Cancels lobby work, leaves the lobby and disables the current transport </summary>
         public void Leave()
         {
             operation.Cancel();
@@ -231,7 +213,6 @@ namespace ArtDock.Networking.Platforms
             nextInitialization = 0;
         }
 
-        /// <summary> Leaves the session and releases Steam subscriptions and runtime resources </summary>
         public void Dispose()
         {
             if (disposed) return;

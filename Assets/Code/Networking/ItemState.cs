@@ -9,7 +9,6 @@ namespace ArtDock.Networking
         public ulong Holder;
         public uint Revision;
 
-        /// <summary> Serializes the holder and claim revision together </summary>
         public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
         {
             serializer.SerializeValue(ref Holder);

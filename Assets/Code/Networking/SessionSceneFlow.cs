@@ -44,7 +44,6 @@ namespace ArtDock.Networking
             context.WorldChanged += BindWorld;
         }
 
-        /// <summary> Subscribes to the current NGO scene manager after network startup </summary>
         private void BindSceneManager()
         {
             stopping = false;
@@ -55,7 +54,6 @@ namespace ArtDock.Networking
                 sceneManager.OnSceneEvent += OnSceneEvent;
         }
 
-        /// <summary> Removes callbacks from the previous NGO scene manager </summary>
         private void UnbindSceneManager()
         {
             if (sceneManager != null)
@@ -63,7 +61,6 @@ namespace ArtDock.Networking
             sceneManager = null;
         }
 
-        /// <summary> Switches change subscriptions to the current network world </summary>
         private void BindWorld()
         {
             if (world is not null) world.Changed -= OnWorldChanged;
@@ -74,7 +71,6 @@ namespace ArtDock.Networking
 
         private void OnWorldChanged() => Changed?.Invoke();
 
-        /// <summary> Creates and initializes the shared network world once on the server </summary>
         public void SpawnWorld(int capacity)
         {
             if (!manager.IsServer || context.World) return;
@@ -85,7 +81,6 @@ namespace ArtDock.Networking
             instance.NetworkObject.Spawn();
         }
 
-        /// <summary> Starts the server arena load and returns to the lobby phase if loading cannot begin </summary>
         public void StartGame()
         {
             if (!CanStart || sceneManager == null) return;
@@ -98,7 +93,6 @@ namespace ArtDock.Networking
             Failed?.Invoke(string.Format(GameErrors.SceneLoadFailed, result));
         }
 
-        /// <summary> Routes scene events to client synchronization and arena loading handlers </summary>
         private void OnSceneEvent(SceneEvent sceneEvent)
         {
             if (stopping) return;
@@ -106,7 +100,6 @@ namespace ArtDock.Networking
             if (sceneEvent.SceneName == GameConstants.ArenaScene) HandleArenaEvent(sceneEvent);
         }
 
-        /// <summary> Tracks the local client synchronization deadline and completion </summary>
         private void HandleSynchronization(SceneEvent sceneEvent)
         {
             if (manager.IsServer) return;
@@ -124,7 +117,6 @@ namespace ArtDock.Networking
             }
         }
 
-        /// <summary> Handles arena load events and marks players who finished loading </summary>
         private void HandleArenaEvent(SceneEvent sceneEvent)
         {
             switch (sceneEvent.SceneEventType)
@@ -149,11 +141,9 @@ namespace ArtDock.Networking
             Changed?.Invoke();
         }
 
-        /// <summary> Validates completed loads and lets surviving players enter gameplay </summary>
         private void CompleteLoading(SceneEvent sceneEvent)
         {
             Synchronizing = false;
-            // The host enters gameplay after validating its load and disconnecting timed-out clients
             if (manager.IsServer && world && world.Phase.Value == SessionPhase.Loading)
             {
                 var completed = new HashSet<ulong>(sceneEvent.ClientsThatCompleted);
@@ -165,7 +155,6 @@ namespace ArtDock.Networking
             Changed?.Invoke();
         }
 
-        /// <summary> Fails the session if the host did not finish loading the arena </summary>
         private bool ValidateHostLoaded(HashSet<ulong> completed)
         {
             if (completed.Contains(NetworkManager.ServerClientId)) return true;
@@ -173,7 +162,6 @@ namespace ArtDock.Networking
             return false;
         }
 
-        /// <summary> Disconnects clients missing from the completed roster as well as explicit timeouts </summary>
         private void DisconnectTimedOutClients(SceneEvent sceneEvent, HashSet<ulong> completed)
         {
             var timedOut = new HashSet<ulong>(sceneEvent.ClientsThatTimedOut);
@@ -190,7 +178,6 @@ namespace ArtDock.Networking
             }
         }
 
-        /// <summary> Marks completed players ready, enters gameplay and creates the initial arena items </summary>
         private void EnterPlaying(IEnumerable<ulong> completed)
         {
             foreach (var client in completed)
@@ -199,7 +186,6 @@ namespace ArtDock.Networking
             UnityEngine.Object.FindFirstObjectByType<ArenaLayout>()?.SpawnInitialItems(context);
         }
 
-        /// <summary> Stops processing scene events while the network session shuts down </summary>
         public void BeginShutdown()
         {
             stopping = true;
@@ -221,7 +207,6 @@ namespace ArtDock.Networking
             return menuOperation == null || menuOperation.isDone;
         }
 
-        /// <summary> Clears load operations and synchronization state before another session </summary>
         public void Reset()
         {
             loadingOperation = null;
@@ -229,7 +214,6 @@ namespace ArtDock.Networking
             Synchronizing = false;
         }
 
-        /// <summary> Removes scene, network startup and world subscriptions </summary>
         public void Dispose()
         {
             UnbindSceneManager();

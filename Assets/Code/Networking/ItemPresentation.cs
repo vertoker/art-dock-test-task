@@ -21,7 +21,6 @@ namespace ArtDock.Networking
             this.context = context;
         }
 
-        /// <summary> Updates held or released presentation using the current network holder </summary>
         public void Tick()
         {
             if (!visual) return;
@@ -36,7 +35,6 @@ namespace ArtDock.Networking
             holder = current;
         }
 
-        /// <summary> Follows the hold position with local or replicated aim while clamping visual displacement </summary>
         private void FollowHolder(NetworkPlayer player, ulong current, float blend)
         {
             var eye = player.transform.position + Vector3.up * context.Settings.Player.EyeHeight;
@@ -50,7 +48,6 @@ namespace ArtDock.Networking
             visual.rotation = Quaternion.Slerp(visual.rotation, item.transform.rotation, blend);
         }
 
-        /// <summary> Blends a released item's presentation back toward its network transform </summary>
         private void ReturnToBody(float blend)
         {
             visual.position = physics.ConstrainPresentation(Vector3.Lerp(visual.position, item.transform.position, blend));
