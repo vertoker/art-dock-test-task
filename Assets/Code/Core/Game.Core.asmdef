@@ -1,0 +1,6 @@
+{
+  "name": "Game.Core",
+  "rootNamespace": "ArtDock.Core",
+  "references": [],
+  "noEngineReferences": true
+}

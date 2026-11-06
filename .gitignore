@@ -31,6 +31,7 @@
 /[Aa]ssets/Plugins/Editor/JetBrains*
 # Jetbrains Rider personal-layer settings
 *.DotSettings.user
+.idea/
 
 # Visual Studio cache directory
 .vs/

@@ -1,0 +1,8 @@
+{
+  "name": "Game.Networking",
+  "rootNamespace": "ArtDock.Networking",
+  "references": [
+    "Game.Core",
+    "Unity.Netcode.Runtime"
+  ]
+}

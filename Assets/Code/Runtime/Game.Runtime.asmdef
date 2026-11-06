@@ -1,0 +1,9 @@
+{
+  "name": "Game.Runtime",
+  "rootNamespace": "ArtDock.Runtime",
+  "references": [
+    "Game.Core",
+    "Game.Networking",
+    "VContainer"
+  ]
+}
