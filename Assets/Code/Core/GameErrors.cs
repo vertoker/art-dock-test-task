@@ -1,5 +1,6 @@
 namespace ArtDock.Core
 {
+    /// <summary> Error messages for connections, scene loading and platform operations </summary>
     public static class GameErrors
     {
         public const string MissingReference = "\"{0}\" is null";

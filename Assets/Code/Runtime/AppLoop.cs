@@ -8,7 +8,8 @@ using VContainer.Unity;
 
 namespace ArtDock.Runtime
 {
-    public sealed class AppLoop : IStartable, ITickable, IDisposable
+    /// <summary> Starts the application and updates the session, LAN discovery and pending statistics </summary>
+    public class AppLoop : IStartable, ITickable, IDisposable
     {
         private readonly SessionService session;
         private readonly LaunchOptions options;
@@ -16,6 +17,7 @@ namespace ArtDock.Runtime
         private readonly NetworkContext context;
         private readonly LanDiscovery discovery;
         private readonly IPlayerStatistics statistics;
+        
         private AsyncOperation menuLoad;
         private bool launchHandled;
         private float nextFlush;
@@ -29,6 +31,7 @@ namespace ArtDock.Runtime
             this.context = context;
             this.discovery = discovery;
             this.statistics = statistics;
+            
             context.Statistics = statistics;
             session.Changed += OnSessionChanged;
         }
@@ -47,6 +50,7 @@ namespace ArtDock.Runtime
             if (Application.isEditor || Application.isBatchMode || !settings.Launch.FullscreenOnStart) return;
 
             var arguments = Environment.GetCommandLineArgs();
+            // Explicit command-line window options take priority over the fullscreen setting
             if (Array.IndexOf(arguments, "-screen-width") >= 0 || Array.IndexOf(arguments, "-screen-height") >= 0 ||
                 Array.IndexOf(arguments, "-screen-fullscreen") >= 0) return;
 
@@ -64,6 +68,7 @@ namespace ArtDock.Runtime
 
         private void HandleLaunch()
         {
+            // Run automatic connection once after the menu loads, unless Steam already requested a join
             if (launchHandled || menuLoad is not { isDone: true }) return;
             launchHandled = true;
 
@@ -78,9 +83,11 @@ namespace ArtDock.Runtime
 
         private void TickDiscovery()
         {
+            // Stop discovery when switching platforms or leaving the connection menu
             if (discovery.Searching && (session.Mode != ConnectionMode.Lan || session.State != SessionState.Offline))
                 discovery.StopSearch();
 
+            // Advertise only an open LAN session that is ready to accept another player
             var advertise = session.Mode == ConnectionMode.Lan && session.IsHost && !session.IsPrivate &&
                 session.State == SessionState.Connected && !session.Loading && session.PlayerCount < session.Capacity;
             discovery.Tick(advertise, session.Title, options.Port, session.PlayerCount, session.Capacity);

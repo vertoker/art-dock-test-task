@@ -3,6 +3,7 @@ using UnityEngine;
 
 namespace ArtDock.Networking
 {
+    /// <summary> Shared settings for sessions, player controls, items and connection platforms </summary>
     [CreateAssetMenu(menuName = "Game/Settings")]
     public class GameSettings : ScriptableObject
     {
@@ -47,8 +48,9 @@ namespace ArtDock.Networking
         public LaunchConfiguration Launch => launch;
         public WorldConfiguration World => world;
 
+        /// <summary> Frame rate, background execution and window settings at launch </summary>
         [Serializable]
-        public sealed class LaunchConfiguration
+        public class LaunchConfiguration
         {
             public int TargetFrameRate = 60;
             public bool RunInBackground = true;
@@ -56,8 +58,9 @@ namespace ArtDock.Networking
             public string AuthorUrl = "https://www.linkedin.com/in/vertoker";
         }
 
+        /// <summary> Position and dimensions of the starting cube pyramid </summary>
         [Serializable]
-        public sealed class WorldConfiguration
+        public class WorldConfiguration
         {
             public Vector3 PyramidOrigin = new(2, 0, 10);
             [Range(0, 8)] public int PyramidRows = 7;
@@ -65,23 +68,26 @@ namespace ArtDock.Networking
             [Min(0)] public float PyramidGroundGap = 0.01f;
         }
 
+        /// <summary> Intervals for RTT probes and diagnostic refreshes </summary>
         [Serializable]
-        public sealed class DiagnosticsConfiguration
+        public class DiagnosticsConfiguration
         {
             [Min(0.5f)] public float PingInterval = 2;
             [Min(1)] public float PingTimeout = 6;
             [Min(0.1f)] public float RefreshInterval = 0.25f;
         }
 
+        /// <summary> Statistics flush interval and achievement threshold </summary>
         [Serializable]
-        public sealed class StatisticsConfiguration
+        public class StatisticsConfiguration
         {
             [Min(1)] public float FlushInterval = 10;
             [Min(1)] public int AchievementThreshold = 10;
         }
 
+        /// <summary> LAN discovery port, announcement intervals and incoming packet limits </summary>
         [Serializable]
-        public sealed class DiscoveryConfiguration
+        public class DiscoveryConfiguration
         {
             [Range(1, 65535)] public int Port = 47778;
             [Min(0.5f)] public float BeaconInterval = 1;
@@ -92,16 +98,18 @@ namespace ArtDock.Networking
             [Range(128, 2048)] public int MaxPayloadBytes = 512;
         }
 
+        /// <summary> Steam application ID and presence update intervals </summary>
         [Serializable]
-        public sealed class SteamConfiguration
+        public class SteamConfiguration
         {
             public uint AppId = 480;
             [Min(0.1f)] public float PresenceInterval = 1;
             [Min(1)] public float RetryInterval = 5;
         }
 
+        /// <summary> Item dimensions, grab limits and physics settings </summary>
         [Serializable]
-        public sealed class ItemConfiguration
+        public class ItemConfiguration
         {
             [Min(1)] public int MaxItems = 48;
             [Min(0.1f)] public float CubeSize = 0.6f;
@@ -124,8 +132,9 @@ namespace ArtDock.Networking
             public float HoldRadius => HalfExtents.magnitude;
         }
 
+        /// <summary> Player controls, appearance and server movement limits </summary>
         [Serializable]
-        public sealed class PlayerConfiguration
+        public class PlayerConfiguration
         {
             [Min(0.1f)] public float ColorCooldown = 0.5f;
             public Color[] Palette =

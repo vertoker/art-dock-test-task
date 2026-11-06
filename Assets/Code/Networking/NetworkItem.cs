@@ -1,20 +1,22 @@
-using System.Collections.Generic;
-using System;
 using Unity.Netcode;
 using UnityEngine;
 
 namespace ArtDock.Networking
 {
+    /// <summary> Validates item commands on the server and synchronizes the holder and revision </summary>
     [RequireComponent(typeof(Rigidbody), typeof(BoxCollider), typeof(ItemNetworkTransform))]
     public class NetworkItem : NetworkBehaviour
     {
         public const ulong NoHolder = ulong.MaxValue;
         [SerializeField] private Transform presentation;
+        
         public readonly NetworkVariable<ItemState> State = new(new ItemState { Holder = NoHolder });
+        
         private NetworkContext context;
         private ItemPhysics physics;
         private ItemPresentation visual;
 
+        /// <summary> Creates item physics and presentation, then registers the item in the current world </summary>
         public override void OnNetworkSpawn()
         {
             context = NetworkManager.GetComponent<NetworkContext>();
@@ -26,21 +28,27 @@ namespace ArtDock.Networking
             State.OnValueChanged += OnStateChanged;
         }
 
+        /// <summary> Updates the held item lookup after a holder change </summary>
         private void OnStateChanged(ItemState previous, ItemState current) => context.UpdateItemHolder(this, previous.Holder, current.Holder);
+        
         private void LateUpdate()
         {
-            if (IsSpawned) visual.Tick();
+            if (IsSpawned)
+                visual.Tick();
         }
 
+        /// <summary> Updates holder collisions and performs server holding and world bounds checks </summary>
         private void FixedUpdate()
         {
             if (!IsSpawned) return;
 
+            // Update holder collisions on both the server and clients
             context.Players.TryGetValue(State.Value.Holder, out var holder);
             physics.UpdateCollisions(holder);
 
             if (!IsServer) return;
 
+            // The server removes items outside world bounds
             if (PlayerValidation.OutsideBounds(transform.position, context.Settings))
             {
                 NetworkObject.Despawn();
@@ -49,17 +57,22 @@ namespace ArtDock.Networking
 
             if (State.Value.Holder == NoHolder) return;
 
+            // Release the item if its holder is unavailable or can no longer hold it
             if (!holder || !holder.IsSpawned || !holder.CanAct || !physics.Follow(holder))
                 ReleaseDisconnected(State.Value.Holder);
         }
 
+        /// <summary> Finds the command sender and checks the item action cooldown </summary>
         private bool TryPlayer(ulong sender, out NetworkPlayer player) => context.Players.TryGetValue(sender, out player) &&
             player && player.TryConsumeItemAction();
 
+        /// <summary> Grabs a free item after the server validates the player and revision </summary>
         [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
         public void GrabRpc(uint expectedRevision, RpcParams rpc = default)
         {
             var sender = rpc.Receive.SenderClientId;
+            
+            // Check reach, line of sight and the current claim revision
             if (!TryPlayer(sender, out var player) || !physics.InReach(player) || !physics.VisibleFrom(player) ||
                 !context.Claims.TryGrab(NetworkObjectId, sender, expectedRevision)) return;
 
@@ -68,13 +81,18 @@ namespace ArtDock.Networking
             Publish();
         }
 
+        /// <summary> Drops or throws an item at the current holder's request </summary>
         [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
         public void ReleaseRpc(uint expectedRevision, bool throwing, Vector3 direction, RpcParams rpc = default)
         {
             var sender = rpc.Receive.SenderClientId;
+            
+            // Only the current holder with the current revision can issue this command
             if (State.Value.Holder != sender || State.Value.Revision != expectedRevision || !TryPlayer(sender, out var player)) return;
-
+            
+            // The throw direction must be finite and approximately unit length
             if (throwing && (!Finite(direction) || direction.sqrMagnitude < 0.9f || direction.sqrMagnitude > 1.1f)) return;
+            // Release the server claim before restoring item physics
             if (!context.Claims.TryRelease(NetworkObjectId, sender, expectedRevision)) return;
 
             ReleasePhysics();
@@ -85,22 +103,27 @@ namespace ArtDock.Networking
             }
         }
 
+        /// <summary> Removes an item after validating its holder's request </summary>
         [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
         public void DeleteRpc(uint expectedRevision, RpcParams rpc = default)
         {
             var sender = rpc.Receive.SenderClientId;
+            // Check the holder, revision and reach before removing the item
             if (State.Value.Holder != sender || State.Value.Revision != expectedRevision || !TryPlayer(sender, out var player) ||
                 !physics.InReach(player) || !context.Claims.TryRelease(NetworkObjectId, sender, expectedRevision)) return;
 
             NetworkObject.Despawn();
         }
 
+        /// <summary> Releases the current claim when its holder disconnects or can no longer hold the item </summary>
         public void ReleaseDisconnected(ulong client)
         {
+            // Release only the disconnected client's claim
             if (IsSpawned && IsServer && State.Value.Holder == client &&
                 context.Claims.TryRelease(NetworkObjectId, client, State.Value.Revision)) ReleasePhysics();
         }
 
+        /// <summary> Returns network ownership to the server and publishes the released claim state </summary>
         private void ReleasePhysics()
         {
             NetworkObject.RemoveOwnership();
@@ -108,6 +131,7 @@ namespace ArtDock.Networking
             Publish();
         }
 
+        /// <summary> Copies the server claim holder and revision into the network state </summary>
         private void Publish()
         {
             var claim = context.Claims.For(NetworkObjectId);
@@ -116,6 +140,7 @@ namespace ArtDock.Networking
 
         private static bool Finite(Vector3 value) => float.IsFinite(value.x) && float.IsFinite(value.y) && float.IsFinite(value.z);
 
+        /// <summary> Restores collisions and removes the item from the world context </summary>
         public override void OnNetworkDespawn()
         {
             State.OnValueChanged -= OnStateChanged;
@@ -126,244 +151,4 @@ namespace ArtDock.Networking
         }
     }
 
-    public struct ItemState : INetworkSerializable, IEquatable<ItemState>
-    {
-        public ulong Holder;
-        public uint Revision;
-
-        public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
-        {
-            serializer.SerializeValue(ref Holder);
-            serializer.SerializeValue(ref Revision);
-        }
-
-        public bool Equals(ItemState other) => Holder == other.Holder && Revision == other.Revision;
-    }
-
-    public sealed class ItemPhysics
-    {
-        private readonly Rigidbody body;
-        private readonly BoxCollider collider;
-        private readonly GameSettings.ItemConfiguration settings;
-        private readonly HashSet<Collider> ignored = new();
-        private readonly List<Collider> restore = new();
-        private NetworkPlayer collisionHolder;
-        private Collider[] holderColliders = Array.Empty<Collider>();
-
-        public ItemPhysics(Rigidbody body, BoxCollider collider, GameSettings.ItemConfiguration settings, bool server)
-        {
-            this.body = body;
-            this.collider = collider;
-            this.settings = settings;
-
-            body.isKinematic = !server;
-            body.interpolation = server ? RigidbodyInterpolation.Interpolate : RigidbodyInterpolation.None;
-        }
-
-        public void Grab()
-        {
-            body.linearVelocity = Vector3.zero;
-            body.angularVelocity = Vector3.zero;
-            body.useGravity = false;
-            body.angularDamping = 8;
-        }
-
-        public void Release()
-        {
-            body.useGravity = true;
-            body.angularDamping = 0.05f;
-            body.linearVelocity = Vector3.zero;
-            body.angularVelocity = Vector3.zero;
-        }
-
-        public void Throw(Vector3 direction) => body.AddForce(direction * settings.ThrowImpulse, ForceMode.VelocityChange);
-
-        public bool InReach(NetworkPlayer player) => Vector3.Distance(Eye(player), body.position) <= settings.InteractionRange;
-
-        public bool VisibleFrom(NetworkPlayer player)
-        {
-            var eye = Eye(player);
-            var delta = body.position - eye;
-
-            foreach (var hit in Physics.RaycastAll(eye, delta.normalized, delta.magnitude, ~0, QueryTriggerInteraction.Ignore))
-                if (hit.collider != collider && hit.collider.GetComponentInParent<NetworkPlayer>() != player) return false;
-
-            return true;
-        }
-
-        public bool Follow(NetworkPlayer player)
-        {
-            var eye = Eye(player);
-            if (Vector3.Distance(eye, body.position) > settings.MaxHolderDistance) return false;
-
-            var target = eye + player.AimDirection * HoldDistance(eye, player.AimDirection, player);
-            var blend = 1 - Mathf.Exp(-settings.HoldSharpness * Time.fixedDeltaTime);
-
-            body.linearVelocity = Vector3.ClampMagnitude((target - body.position) * blend / Time.fixedDeltaTime, settings.MaxHoldSpeed);
-            body.angularVelocity = Vector3.zero;
-
-            return true;
-        }
-
-        public float HoldDistance(Vector3 eye, Vector3 direction, NetworkPlayer player)
-        {
-            var distance = settings.HoldDistance;
-
-            foreach (var hit in Physics.SphereCastAll(eye, settings.HoldRadius, direction, distance, ~0, QueryTriggerInteraction.Ignore))
-            {
-                if (hit.collider == collider || hit.collider.GetComponentInParent<NetworkPlayer>() == player) continue;
-
-                distance = Mathf.Min(distance, Mathf.Max(0, hit.distance - settings.ContactGap));
-            }
-
-            return distance;
-        }
-
-        public Vector3 ConstrainPresentation(Vector3 desired, NetworkPlayer player = null)
-        {
-            var origin = body.transform.position;
-            var offset = Vector3.ClampMagnitude(desired - origin, settings.MaxVisualOffset);
-            var distance = offset.magnitude;
-            if (distance < 0.001f) return origin;
-
-            var direction = offset / distance;
-            var position = origin + direction * ClampPresentationDistance(origin, direction, distance, player);
-
-            return PresentationOverlaps(position, player) ? origin : position;
-        }
-
-        private float ClampPresentationDistance(Vector3 origin, Vector3 direction, float distance, NetworkPlayer player)
-        {
-            var halfExtents = Vector3.Scale(collider.size, body.transform.lossyScale) * 0.5f;
-            var rotation = body.transform.rotation;
-
-            foreach (var hit in Physics.BoxCastAll(origin, halfExtents, direction, rotation, distance, ~0, QueryTriggerInteraction.Ignore))
-            {
-                if (IgnorePresentationCollider(hit.collider, player)) continue;
-
-                distance = Mathf.Min(distance, Mathf.Max(0, hit.distance - settings.ContactGap));
-            }
-
-            return distance;
-        }
-
-        private bool PresentationOverlaps(Vector3 position, NetworkPlayer player)
-        {
-            var halfExtents = Vector3.Scale(collider.size, body.transform.lossyScale) * 0.5f;
-            var rotation = body.transform.rotation;
-
-            foreach (var obstacle in Physics.OverlapBox(position, halfExtents, rotation, ~0, QueryTriggerInteraction.Ignore))
-            {
-                if (IgnorePresentationCollider(obstacle, player)) continue;
-
-                if (Physics.ComputePenetration(collider, position, rotation, obstacle, obstacle.transform.position,
-                        obstacle.transform.rotation, out _, out var depth) && depth > 0.001f) return true;
-            }
-
-            return false;
-        }
-
-        private bool IgnorePresentationCollider(Collider other, NetworkPlayer player) =>
-            other == collider || player && other.GetComponentInParent<NetworkPlayer>() == player;
-
-        public void UpdateCollisions(NetworkPlayer holder)
-        {
-            UpdateHolderColliders(holder);
-            IgnoreHolderCollisions();
-            RestoreSeparatedCollisions();
-        }
-
-        private void UpdateHolderColliders(NetworkPlayer holder)
-        {
-            if (collisionHolder == holder) return;
-
-            collisionHolder = holder;
-            holderColliders = holder ? holder.GetComponentsInChildren<Collider>() : Array.Empty<Collider>();
-        }
-
-        private void IgnoreHolderCollisions()
-        {
-            foreach (var playerCollider in holderColliders)
-                if (playerCollider && playerCollider.enabled && ignored.Add(playerCollider))
-                    Physics.IgnoreCollision(collider, playerCollider, true);
-        }
-
-        private void RestoreSeparatedCollisions()
-        {
-            restore.Clear();
-
-            foreach (var playerCollider in ignored)
-            {
-                if (!playerCollider)
-                {
-                    restore.Add(playerCollider);
-                    continue;
-                }
-
-                if (Array.IndexOf(holderColliders, playerCollider) >= 0 && playerCollider.enabled) continue;
-                if (collider.bounds.Intersects(playerCollider.bounds)) continue;
-
-                Physics.IgnoreCollision(collider, playerCollider, false);
-                restore.Add(playerCollider);
-            }
-
-            foreach (var playerCollider in restore) ignored.Remove(playerCollider);
-        }
-
-        public void RestoreCollisions()
-        {
-            foreach (var playerCollider in ignored)
-                if (playerCollider && collider) Physics.IgnoreCollision(collider, playerCollider, false);
-
-            ignored.Clear();
-        }
-
-        private static Vector3 Eye(NetworkPlayer player) => player.TrustedPosition + Vector3.up * player.Context.Settings.Player.EyeHeight;
-    }
-
-    public sealed class ItemPresentation
-    {
-        private readonly NetworkItem item;
-        private readonly Transform visual;
-        private readonly ItemPhysics physics;
-        private readonly NetworkContext context;
-        private Vector3 offset;
-        private ulong holder = NetworkItem.NoHolder;
-
-        public ItemPresentation(NetworkItem item, Transform visual, ItemPhysics physics, NetworkContext context)
-        {
-            this.item = item;
-            this.visual = visual;
-            this.physics = physics;
-            this.context = context;
-        }
-
-        public void Tick()
-        {
-            if (!visual) return;
-
-            var current = item.State.Value.Holder;
-            var blend = 1 - Mathf.Exp(-context.Settings.Items.VisualSharpness * Time.deltaTime);
-
-            if (current != NetworkItem.NoHolder && context.Players.TryGetValue(current, out var player))
-            {
-                var eye = player.transform.position + Vector3.up * context.Settings.Player.EyeHeight;
-                var direction = player.IsOwner ? player.ViewCamera.transform.forward : player.ReplicatedAim.Value;
-                if (holder != current) offset = visual.position - eye;
-
-                var target = direction * physics.HoldDistance(eye, direction, player);
-                offset = Vector3.Lerp(offset, target, blend);
-
-                visual.position = physics.ConstrainPresentation(eye + offset, player);
-                visual.rotation = Quaternion.Slerp(visual.rotation, item.transform.rotation, blend);
-            }
-            else
-            {
-                visual.position = physics.ConstrainPresentation(Vector3.Lerp(visual.position, item.transform.position, blend));
-                visual.localRotation = Quaternion.Slerp(visual.localRotation, Quaternion.identity, blend);
-            }
-
-            holder = current;
-        }
-    }
 }

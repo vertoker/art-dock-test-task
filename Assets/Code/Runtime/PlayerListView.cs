@@ -7,9 +7,11 @@ using UnityEngine.UIElements;
 
 namespace ArtDock.Runtime
 {
-    public sealed class PlayerListView : IDisposable
+    /// <summary> Updates the player list while reusing interface rows between refreshes </summary>
+    public class PlayerListView : IDisposable
     {
-        private sealed class Row : IDisposable
+        /// <summary> A player row with a name, status and host kick button </summary>
+        private class Row : IDisposable
         {
             public readonly VisualElement Root = new();
             public readonly Label Name = new() { enableRichText = false };
@@ -44,6 +46,7 @@ namespace ArtDock.Runtime
         private readonly SessionService session;
         private readonly NetworkManager manager;
         private readonly IGameText text;
+        
         private readonly Dictionary<ulong, Row> rows = new();
         private readonly HashSet<ulong> active = new();
         private readonly List<ulong> removed = new();
@@ -56,6 +59,7 @@ namespace ArtDock.Runtime
             this.text = text;
         }
 
+        /// <summary> Updates existing rows and removes rows for players who left </summary>
         public void Refresh(NetworkWorld world)
         {
             active.Clear();
@@ -70,7 +74,10 @@ namespace ArtDock.Runtime
 
             removed.Clear();
             foreach (var pair in rows)
-                if (!active.Contains(pair.Key)) removed.Add(pair.Key);
+            {
+                if (!active.Contains(pair.Key))
+                    removed.Add(pair.Key);
+            }
 
             foreach (var client in removed)
             {
@@ -80,6 +87,7 @@ namespace ArtDock.Runtime
             }
         }
 
+        /// <summary> Fills a player row and sets whether the host can kick that player </summary>
         private void RefreshRow(SessionPlayer player, NetworkWorld world)
         {
             if (!rows.TryGetValue(player.ClientId, out var row))

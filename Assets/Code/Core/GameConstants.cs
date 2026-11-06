@@ -1,5 +1,6 @@
 namespace ArtDock.Core
 {
+    /// <summary> Shared scene names, addresses and connection status strings </summary>
     public static class GameConstants
     {
         public const string GameName = "TestGame";

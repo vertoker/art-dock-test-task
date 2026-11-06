@@ -9,6 +9,7 @@ using VContainer.Unity;
 
 namespace ArtDock.Runtime
 {
+    /// <summary> Registers application dependencies and keeps the root object across scene changes </summary>
     public class ProjectScope : LifetimeScope
     {
         [SerializeField] private GameSettings settings;

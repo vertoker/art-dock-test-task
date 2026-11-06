@@ -2,6 +2,7 @@ using Unity.Netcode.Components;
 
 namespace ArtDock.Networking
 {
+    /// <summary> Synchronizes owner movement and flags invalid coordinates for server correction </summary>
     public class PlayerNetworkTransform : NetworkTransform
     {
         public bool HasInvalidState { get; private set; }

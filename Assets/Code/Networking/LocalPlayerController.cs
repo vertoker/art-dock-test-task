@@ -3,7 +3,8 @@ using UnityEngine.InputSystem;
 
 namespace ArtDock.Networking
 {
-    public sealed class LocalPlayerController
+    /// <summary> Handles local movement and camera look, sending aim updates to the server </summary>
+    public class LocalPlayerController
     {
         private readonly NetworkPlayer player;
         private readonly CharacterController controller;
@@ -29,15 +30,18 @@ namespace ArtDock.Networking
             UpdateMovement(acceptInput ? Keyboard.current : null);
         }
 
+        /// <summary> Rotates the player and camera from mouse input and updates server aim </summary>
         private void UpdateLook(Mouse mouse)
         {
             var delta = mouse.delta.ReadValue() * settings.MouseSensitivity;
             player.transform.Rotate(0, delta.x, 0);
             
+            // Clamp camera pitch to keep the view from flipping
             pitch = Mathf.Clamp(pitch - delta.y, -settings.PitchLimit, settings.PitchLimit);
             player.ViewCamera.transform.localRotation = Quaternion.Euler(pitch, 0, 0);
-            
             if (Time.unscaledTime < nextAim) return;
+            
+            // Send aim after a noticeable turn or when its refresh interval expires
             nextAim = Time.unscaledTime + settings.AimSendInterval;
             var direction = player.ViewCamera.transform.forward;
             if (Time.unscaledTime < refreshAim && Vector3.Angle(direction, lastAim) < settings.AimAngleThreshold) return;
@@ -47,6 +51,7 @@ namespace ArtDock.Networking
             player.UpdateAim(direction);
         }
 
+        /// <summary> Applies WASD movement, jumping and gravity through CharacterController </summary>
         private void UpdateMovement(Keyboard keyboard)
         {
             var input = Vector3.zero;
@@ -56,6 +61,7 @@ namespace ArtDock.Networking
                 input.z = (keyboard.wKey.isPressed ? 1 : 0) - (keyboard.sKey.isPressed ? 1 : 0);
             }
             
+            // Limit diagonal speed and calculate vertical movement separately
             var movement = player.transform.TransformDirection(Vector3.ClampMagnitude(input, 1)) * settings.MoveSpeed;
             if (controller.isGrounded && verticalSpeed < 0) verticalSpeed = -2;
             if (controller.isGrounded && keyboard != null && keyboard.spaceKey.wasPressedThisFrame)

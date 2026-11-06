@@ -2,7 +2,8 @@ using System;
 
 namespace ArtDock.Core
 {
-    public sealed class MovementBudget
+    /// <summary> Limits movement with a distance budget that refills over time </summary>
+    public class MovementBudget
     {
         private readonly float tolerance;
         private readonly float speed;
@@ -21,11 +22,14 @@ namespace ArtDock.Core
             this.tolerance = tolerance;
             this.speed = speed;
             capacity = tolerance + speed * bufferedSeconds;
+            
             Reset();
         }
 
+        /// <summary> Spends the movement budget when the distance stays within the allowed speed </summary>
         public bool TryConsume(float distance, float elapsedSeconds)
         {
+            // Reject negative values, NaN and infinities
             if (!float.IsFinite(distance) || distance < 0 || !float.IsFinite(elapsedSeconds) || elapsedSeconds < 0)
                 return false;
             

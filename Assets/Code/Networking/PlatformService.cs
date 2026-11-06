@@ -4,6 +4,7 @@ using ArtDock.Core;
 
 namespace ArtDock.Networking
 {
+    /// <summary> Selects the connection platform and forwards its events to the session service </summary>
     public class PlatformService : IDisposable
     {
         private readonly Dictionary<ConnectionMode, IConnectionPlatform> platforms = new();
@@ -11,6 +12,7 @@ namespace ArtDock.Networking
         
         public event Action<ConnectionMode, string> JoinRequested;
         public event Action<ConnectionMode, string> ConnectionLost;
+        
         public bool OverlayOpen
         {
             get
@@ -28,6 +30,7 @@ namespace ArtDock.Networking
             {
                 this.platforms.Add(platform.Mode, platform);
                 Action<string> join = address => JoinRequested?.Invoke(platform.Mode, address);
+                
                 joinHandlers.Add(platform.Mode, join);
                 platform.JoinRequested += join;
                 platform.ConnectionLost += OnConnectionLost;

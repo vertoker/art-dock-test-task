@@ -3,6 +3,7 @@ using UnityEngine;
 
 namespace ArtDock.Networking
 {
+    /// <summary> Batches confirmed throws and writes their statistics to the application log </summary>
     public sealed class LoggingStatistics : IPlayerStatistics
     {
         private readonly GameSettings settings;
@@ -26,8 +27,10 @@ namespace ArtDock.Networking
         {
             if (pending == 0) return;
 
+            // Check the achievement threshold against the total confirmed throw count
             var achievement = total >= settings.Statistics.AchievementThreshold
                 ? text[TextKeys.AchievementReached] : text[TextKeys.AchievementPending];
+            
             Debug.Log(text.Format(TextKeys.StatisticsBatch, total, pending, settings.Statistics.AchievementThreshold, achievement));
             pending = 0;
         }

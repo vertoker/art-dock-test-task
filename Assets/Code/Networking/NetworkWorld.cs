@@ -1,38 +1,42 @@
 using System.Collections.Generic;
 using System;
-using ArtDock.Core;
-using Unity.Collections;
 using Unity.Netcode;
-using UnityEngine.SceneManagement;
 using UnityEngine;
 
 namespace ArtDock.Networking
 {
+    /// <summary> Network world phase: lobby, arena loading or gameplay </summary>
     public enum SessionPhase : byte
     {
+        /// <summary> Players connect and wait for the host to start </summary>
         Lobby = 0,
+        /// <summary> Clients load and synchronize the arena </summary>
         Loading = 1,
+        /// <summary> The arena is ready and gameplay actions are allowed </summary>
         Playing = 2,
     }
 
+    /// <summary> Synchronizes the game phase, player roster and loading readiness </summary>
     public class NetworkWorld : NetworkBehaviour
     {
         public readonly NetworkVariable<SessionPhase> Phase = new();
         public readonly NetworkVariable<byte> Capacity = new();
         public NetworkList<SessionPlayer> Players;
+        
         private readonly NetworkVariable<uint> playersRevision = new();
+        private readonly HashSet<ulong> received = new();
+        private readonly Dictionary<ulong, double> lastReplies = new();
 
         private NetworkContext context;
         private NetworkManager manager;
         private int initialCapacity;
-        private readonly HashSet<ulong> received = new();
-        private readonly Dictionary<ulong, double> lastReplies = new();
         private uint sequence;
         private double sentAt;
         private double nextProbe;
 
         public event Action Changed;
 
+        /// <summary> Number of players who have finished loading the arena </summary>
         public int LoadedCount
         {
             get
@@ -46,6 +50,7 @@ namespace ArtDock.Networking
 
         private void Awake() => Players = new NetworkList<SessionPlayer>();
 
+        /// <summary> Checks that gameplay has started and the given client finished loading </summary>
         public bool IsReady(ulong client)
         {
             if (Phase.Value != SessionPhase.Playing) return false;
@@ -57,6 +62,7 @@ namespace ArtDock.Networking
         }
         internal void Initialize(int capacity) => initialCapacity = capacity;
 
+        /// <summary> Binds replicated state and initializes the server roster and RTT probes </summary>
         public override void OnNetworkSpawn()
         {
             manager = NetworkManager;
@@ -81,6 +87,7 @@ namespace ArtDock.Networking
             context.RegisterWorld(this);
         }
 
+        /// <summary> Removes network callbacks and clears the current world reference </summary>
         public override void OnNetworkDespawn()
         {
             if (manager)
@@ -97,6 +104,7 @@ namespace ArtDock.Networking
             if (context) context.UnregisterWorld(this);
         }
 
+        /// <summary> Adds a newly connected client to the replicated player roster </summary>
         private void OnConnected(ulong client)
         {
             for (var i = 0; i < Players.Count; i++)
@@ -107,6 +115,7 @@ namespace ArtDock.Networking
             Players.Add(new SessionPlayer(client, context.NameFor(client), Phase.Value == SessionPhase.Playing));
         }
 
+        /// <summary> Removes a disconnected player and their pending RTT measurements </summary>
         private void OnDisconnected(ulong client)
         {
             RemoveLatency(client);
@@ -120,6 +129,7 @@ namespace ArtDock.Networking
             }
         }
 
+        /// <summary> Clears player load flags before switching the server world to loading </summary>
         internal void BeginLoading()
         {
             if (!IsServer) return;
@@ -139,6 +149,7 @@ namespace ArtDock.Networking
                 Phase.Value = phase;
         }
 
+        /// <summary> Marks the given player as loaded in the server roster </summary>
         internal void MarkLoaded(ulong client)
         {
             if (!IsServer) return;
@@ -161,13 +172,16 @@ namespace ArtDock.Networking
 
         internal void SendProbe(uint sequence) => ProbeRpc(sequence);
 
+        /// <summary> Requests a client reply to measure application RTT </summary>
         [Rpc(SendTo.NotServer, InvokePermission = RpcInvokePermission.Server)]
         private void ProbeRpc(uint sequence) => ReplyRpc(sequence);
 
+        /// <summary> Receives a probe reply and identifies its sender from the RPC </summary>
         [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
         private void ReplyRpc(uint sequence, RpcParams rpc = default)
             => RecordRoundTrip(rpc.Receive.SenderClientId, sequence);
 
+        /// <summary> Updates the player RTT only when its displayed value changes </summary>
         internal void SetRoundTrip(ulong client, int milliseconds)
         {
             for (var i = 0; i < Players.Count; i++)
@@ -183,6 +197,7 @@ namespace ArtDock.Networking
 
         private void OnPhaseChanged(SessionPhase previous, SessionPhase current) => Changed?.Invoke();
         private void OnCapacityChanged(byte previous, byte current) => Changed?.Invoke();
+        /// <summary> Replicates a complete roster revision on the server and notifies clients of changes </summary>
         private void OnPlayersChanged(NetworkListEvent<SessionPlayer> change)
         {
             if (IsServer)
@@ -195,6 +210,7 @@ namespace ArtDock.Networking
 
         private void OnPlayersRevisionChanged(uint previous, uint current) => Changed?.Invoke();
 
+        /// <summary> Sends periodic application probes and expires stale RTT measurements </summary>
         private void UpdateRoundTrips()
         {
             var now = Time.realtimeSinceStartupAsDouble;
@@ -208,7 +224,10 @@ namespace ArtDock.Networking
             for (var i = 0; i < Players.Count; i++)
             {
                 var client = Players[i].ClientId;
-                if (client == NetworkManager.ServerClientId) SetRoundTrip(client, 0);
+                
+                if (client == NetworkManager.ServerClientId)
+                    SetRoundTrip(client, 0);
+                // Show an unavailable measurement when the latest reply is too old
                 else if (!lastReplies.TryGetValue(client, out var last) || now - last > context.Settings.Diagnostics.PingTimeout)
                     SetRoundTrip(client, -1);
             }
@@ -216,8 +235,10 @@ namespace ArtDock.Networking
             SendProbe(sequence);
         }
 
+        /// <summary> Accepts one timely reply per client for the current probe </summary>
         private void RecordRoundTrip(ulong client, uint reply)
         {
+            // Ignore replies to earlier probes and repeated replies from one client
             if (reply != sequence || client == NetworkManager.ServerClientId || !received.Add(client)) return;
 
             var elapsed = Time.realtimeSinceStartupAsDouble - sentAt;
@@ -233,246 +254,5 @@ namespace ArtDock.Networking
             received.Remove(client);
         }
 
-        internal class SessionSceneFlow : IDisposable
-        {
-            private readonly NetworkManager manager;
-            private readonly NetworkContext context;
-            private readonly GameSettings settings;
-            
-            private NetworkSceneManager sceneManager;
-            private NetworkWorld world;
-            private AsyncOperation loadingOperation;
-            private AsyncOperation menuOperation;
-            
-            private float synchronizationDeadline;
-            private bool stopping;
-
-            public event Action Changed;
-            public event Action<string> Failed;
-            
-            public bool Synchronizing { get; private set; }
-            public bool SynchronizationTimedOut => Time.realtimeSinceStartup > synchronizationDeadline;
-            public bool Loading => Synchronizing || world && world.Phase.Value == SessionPhase.Loading;
-            public bool MenuReady => SceneManager.GetActiveScene().name == GameConstants.MenuScene;
-            public bool CanStart => !stopping && manager.IsServer && world && world.Phase.Value == SessionPhase.Lobby &&
-                manager.PendingClients.Count == 0 && world.Players.Count == manager.ConnectedClientsIds.Count;
-
-            public SessionSceneFlow(NetworkManager manager, NetworkContext context, GameSettings settings)
-            {
-                this.manager = manager;
-                this.context = context;
-                this.settings = settings;
-                
-                manager.OnServerStarted += BindSceneManager;
-                manager.OnClientStarted += BindSceneManager;
-                context.WorldChanged += BindWorld;
-            }
-
-            private void BindSceneManager()
-            {
-                stopping = false;
-                UnbindSceneManager();
-                
-                sceneManager = manager.SceneManager;
-                if (sceneManager != null)
-                    sceneManager.OnSceneEvent += OnSceneEvent;
-            }
-
-            private void UnbindSceneManager()
-            {
-                if (sceneManager != null)
-                    sceneManager.OnSceneEvent -= OnSceneEvent;
-                sceneManager = null;
-            }
-
-            private void BindWorld()
-            {
-                if (world is not null) world.Changed -= OnWorldChanged;
-                world = context.World;
-                if (world) world.Changed += OnWorldChanged;
-                Changed?.Invoke();
-            }
-
-            private void OnWorldChanged() => Changed?.Invoke();
-
-            public void SpawnWorld(int capacity)
-            {
-                if (!manager.IsServer || context.World) return;
-                if (!context.WorldPrefab) throw new InvalidOperationException(GameErrors.WorldPrefabNotAssigned);
-                
-                var instance = UnityEngine.Object.Instantiate(context.WorldPrefab);
-                instance.Initialize(capacity);
-                instance.NetworkObject.Spawn();
-            }
-
-            public void StartGame()
-            {
-                if (!CanStart || sceneManager == null) return;
-                
-                world.BeginLoading();
-                var result = sceneManager.LoadScene(GameConstants.ArenaScene, LoadSceneMode.Single);
-                if (result == SceneEventProgressStatus.Started) return;
-                
-                world.SetPhase(SessionPhase.Lobby);
-                Failed?.Invoke(string.Format(GameErrors.SceneLoadFailed, result));
-            }
-
-            private void OnSceneEvent(SceneEvent sceneEvent)
-            {
-                if (stopping) return;
-                HandleSynchronization(sceneEvent);
-                if (sceneEvent.SceneName == GameConstants.ArenaScene) HandleArenaEvent(sceneEvent);
-            }
-
-            private void HandleSynchronization(SceneEvent sceneEvent)
-            {
-                if (manager.IsServer) return;
-                if (sceneEvent.SceneEventType == SceneEventType.Synchronize)
-                {
-                    Synchronizing = true;
-                    synchronizationDeadline = Time.realtimeSinceStartup + settings.SceneLoadTimeout;
-                    Changed?.Invoke();
-                }
-                else if (sceneEvent.SceneEventType == SceneEventType.SynchronizeComplete &&
-                    sceneEvent.ClientId == manager.LocalClientId)
-                {
-                    Synchronizing = false;
-                    Changed?.Invoke();
-                }
-            }
-
-            private void HandleArenaEvent(SceneEvent sceneEvent)
-            {
-                switch (sceneEvent.SceneEventType)
-                {
-                    case SceneEventType.Load:
-                        TrackSceneLoading(sceneEvent.AsyncOperation);
-                        break;
-                    case SceneEventType.LoadComplete when manager.IsServer && world:
-                        world.MarkLoaded(sceneEvent.ClientId);
-                        break;
-                    case SceneEventType.LoadEventCompleted:
-                        CompleteLoading(sceneEvent);
-                        break;
-                }
-            }
-
-            private void TrackSceneLoading(AsyncOperation operation)
-            {
-                loadingOperation = operation;
-                if (!manager.IsServer) Synchronizing = true;
-                Changed?.Invoke();
-            }
-
-            private void CompleteLoading(SceneEvent sceneEvent)
-            {
-                Synchronizing = false;
-                if (manager.IsServer && world && world.Phase.Value == SessionPhase.Loading)
-                {
-                    var completed = new HashSet<ulong>(sceneEvent.ClientsThatCompleted);
-                    if (!ValidateHostLoaded(completed)) return;
-                    DisconnectTimedOutClients(sceneEvent, completed);
-                    EnterPlaying(completed);
-                }
-                Changed?.Invoke();
-            }
-
-            private bool ValidateHostLoaded(HashSet<ulong> completed)
-            {
-                if (completed.Contains(NetworkManager.ServerClientId)) return true;
-                Failed?.Invoke(GameErrors.HostSceneLoadFailed);
-                return false;
-            }
-
-            private void DisconnectTimedOutClients(SceneEvent sceneEvent, HashSet<ulong> completed)
-            {
-                var timedOut = new HashSet<ulong>(sceneEvent.ClientsThatTimedOut);
-                
-                for (var i = 0; i < world.Players.Count; i++)
-                {
-                    if (!completed.Contains(world.Players[i].ClientId))
-                        timedOut.Add(world.Players[i].ClientId);
-                }
-                foreach (var client in timedOut)
-                {
-                    if (manager.ConnectedClients.ContainsKey(client))
-                        manager.DisconnectClient(client, GameErrors.SceneLoadTimedOut);
-                }
-            }
-
-            private void EnterPlaying(IEnumerable<ulong> completed)
-            {
-                foreach (var client in completed)
-                    world.MarkLoaded(client);
-                world.SetPhase(SessionPhase.Playing);
-                UnityEngine.Object.FindFirstObjectByType<ArenaLayout>()?.SpawnInitialItems(context);
-            }
-
-            public void BeginShutdown()
-            {
-                stopping = true;
-                Synchronizing = false;
-                UnbindSceneManager();
-            }
-
-            public bool ReturnToMenu()
-            {
-                if (!Application.isPlaying) return true;
-                if (loadingOperation is { isDone: false }) return false;
-                if (menuOperation != null) return menuOperation.isDone;
-                
-                var scene = SceneManager.GetActiveScene().name;
-                if (scene is GameConstants.MenuScene or GameConstants.BootScene) return true;
-                
-                menuOperation = SceneManager.LoadSceneAsync(GameConstants.MenuScene, LoadSceneMode.Single);
-                return menuOperation == null || menuOperation.isDone;
-            }
-
-            public void Reset()
-            {
-                loadingOperation = null;
-                menuOperation = null;
-                Synchronizing = false;
-            }
-
-            public void Dispose()
-            {
-                UnbindSceneManager();
-                manager.OnServerStarted -= BindSceneManager;
-                manager.OnClientStarted -= BindSceneManager;
-                context.WorldChanged -= BindWorld;
-                if (world is not null) world.Changed -= OnWorldChanged;
-            }
-        }
     }
-
-    public struct SessionPlayer : INetworkSerializable, IEquatable<SessionPlayer>
-    {
-        public ulong ClientId;
-        public bool IsLoaded;
-        public int RoundTripMs;
-        private FixedString128Bytes playerName;
-
-        public string Name => playerName.ToString();
-
-        public SessionPlayer(ulong clientId, string name, bool isLoaded)
-        {
-            ClientId = clientId;
-            playerName = new FixedString128Bytes(name);
-            IsLoaded = isLoaded;
-            RoundTripMs = -1;
-        }
-
-        public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
-        {
-            serializer.SerializeValue(ref ClientId);
-            serializer.SerializeValue(ref playerName);
-            serializer.SerializeValue(ref IsLoaded);
-            serializer.SerializeValue(ref RoundTripMs);
-        }
-
-        public bool Equals(SessionPlayer other)
-            => ClientId == other.ClientId && playerName.Equals(other.playerName) && IsLoaded == other.IsLoaded && RoundTripMs == other.RoundTripMs;
-    }
-
 }

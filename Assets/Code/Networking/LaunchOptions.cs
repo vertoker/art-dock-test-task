@@ -3,6 +3,7 @@ using ArtDock.Core;
 
 namespace ArtDock.Networking
 {
+    /// <summary> Command-line options for player profiles and automatic session startup </summary>
     public class LaunchOptions
     {
         public string Profile { get; }
@@ -20,18 +21,20 @@ namespace ArtDock.Networking
             Profile = Argument(args, "--profile", "default");
             PlayerName = Argument(args, "--name", $"Player {Profile}").Trim();
             Host = Array.IndexOf(args, "--host") >= 0;
+            IsPrivate = Array.IndexOf(args, "--private") >= 0;
+            
             var lobby = Argument(args, GameConstants.SteamConnectArgument, string.Empty);
             JoinAddress = string.IsNullOrEmpty(lobby) ? Argument(args, "--join", string.Empty) : lobby;
+            
             Mode = !string.IsNullOrEmpty(lobby) || Array.IndexOf(args, "--steam") >= 0 ||
                 string.Equals(Argument(args, "--mode", string.Empty), GameConstants.SteamMode, StringComparison.OrdinalIgnoreCase)
                 ? ConnectionMode.Steam : ConnectionMode.Lan;
-            IsPrivate = Array.IndexOf(args, "--private") >= 0;
-
-
+            
             var portSrc = Argument(args, "--port", string.Empty);
             Port = ushort.TryParse(portSrc, out var port) && port != 0 ? port : settings.Port;
         }
 
+        /// <summary> Reads an argument value or returns its default </summary>
         private static string Argument(string[] args, string key, string fallback)
         {
             var index = Array.IndexOf(args, key);

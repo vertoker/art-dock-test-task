@@ -6,9 +6,11 @@ using UnityEngine;
 
 namespace ArtDock.Runtime
 {
+    /// <summary> Stores editable game text and substitutes the game name into templates </summary>
     [CreateAssetMenu(menuName = "Game/Text settings", fileName = "GameText")]
-    public sealed class GameTextSettings : ScriptableObject, IGameText
+    public class GameTextSettings : ScriptableObject, IGameText
     {
+        /// <summary> A text key and value editable in the inspector </summary>
         [Serializable]
         private struct Entry
         {

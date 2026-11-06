@@ -11,6 +11,7 @@ using UnityEngine;
 
 namespace ArtDock.Networking.Platforms
 {
+    /// <summary> Prepares IPv4 connections through UnityTransport and stores the local player profile </summary>
     public class LanPlatform : IConnectionPlatform
     {
         private readonly NetworkManager manager;
@@ -44,30 +45,47 @@ namespace ArtDock.Networking.Platforms
             }
         }
 
+        /// <summary> Selects the LAN transport and listens on the configured port </summary>
         public Task<bool> PrepareHost(string title, int capacity, bool isPrivate, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            Error = "";
+            Error = string.Empty;
+            
+            // Clients use the host address while the host listens on all local interfaces
             manager.NetworkConfig.NetworkTransport = transport;
             transport.SetConnectionData(GameConstants.LoopbackAddress, options.Port, GameConstants.ListenAddress);
             return Task.FromResult(true);
         }
 
+        /// <summary> Validates the IPv4 address and port before configuring the client transport </summary>
         public Task<bool> PrepareJoin(string address, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            Error = "";
-            var parts = (address ?? "").Trim().Split(':');
-            var port = options.Port;
-            if (parts.Length > 2 || !IPAddress.TryParse(parts[0], out var ip) || ip.AddressFamily != AddressFamily.InterNetwork ||
-                (parts.Length == 2 && (!ushort.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out port) || port == 0)))
+            Error = string.Empty;
+
+            if (!TryParseAddress(address, out var ip, out var port))
             {
                 Error = GameErrors.InvalidAddress;
                 return Task.FromResult(false);
             }
+
             manager.NetworkConfig.NetworkTransport = transport;
             transport.SetConnectionData(ip.ToString(), port);
             return Task.FromResult(true);
+        }
+
+        /// <summary> Parses IPv4 with an optional port, falling back to the launch port </summary>
+        private bool TryParseAddress(string address, out IPAddress ip, out ushort port)
+        {
+            var parts = (address ?? string.Empty).Trim().Split(':');
+            ip = null;
+            port = options.Port;
+            if (parts.Length > 2) return false;
+
+            if (!IPAddress.TryParse(parts[0], out ip) || ip.AddressFamily != AddressFamily.InterNetwork) return false;
+            if (parts.Length == 1) return true;
+
+            return ushort.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out port) && port != 0;
         }
 
         public void Tick() { }

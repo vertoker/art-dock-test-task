@@ -4,8 +4,9 @@ using UnityEngine;
 
 namespace ArtDock.Runtime
 {
+    /// <summary> Registers a player reset region and removes items entering it on the server </summary>
     [RequireComponent(typeof(BoxCollider))]
-    public sealed class WorldResetZone : MonoBehaviour, IWorldResetZone
+    public class WorldResetZone : MonoBehaviour, IWorldResetZone
     {
         private NetworkContext context;
         private BoxCollider volume;

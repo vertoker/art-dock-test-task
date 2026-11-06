@@ -1,31 +1,35 @@
-using System.Text;
 using System.Threading.Tasks;
-using System.Threading;
 using System;
 using ArtDock.Core;
-using Unity.Collections;
 using Unity.Netcode;
 using UnityEngine;
 
 namespace ArtDock.Networking
 {
+    /// <summary> Connection state from platform preparation through complete session shutdown </summary>
     public enum SessionState : byte
     {
+        /// <summary> No network session is running </summary>
         Offline = 0,
+        /// <summary> The platform is preparing a host or client connection </summary>
         Preparing = 1,
+        /// <summary> The transport has started and is waiting for connection approval </summary>
         Connecting = 2,
+        /// <summary> The local client is connected to the session </summary>
         Connected = 3,
+        /// <summary> The session is shutting down and returning to the menu </summary>
         Stopping = 4,
     }
     
-    public class SessionService : IDisposable
+    /// <summary> Starts and stops sessions, connecting the platform, approval checks and scene flow </summary>
+    public partial class SessionService : IDisposable
     {
         private readonly NetworkManager manager;
         private readonly PlatformService platforms;
         private readonly GameSettings settings;
         private readonly SessionApproval approval;
         private readonly NetworkContext context;
-        private readonly NetworkWorld.SessionSceneFlow scenes;
+        private readonly SessionSceneFlow scenes;
         
         private IConnectionPlatform platform;
         private SessionAttempt attempt;
@@ -37,13 +41,16 @@ namespace ArtDock.Networking
         public event Action Changed;
         public ConnectionMode Mode { get; set; } = ConnectionMode.Lan;
         public SessionState State { get; private set; }
+        
         public string Message { get; private set; } = string.Empty;
         public string Title { get; private set; } = GameConstants.GameName;
         public bool IsPrivate { get; private set; }
         public string LobbyId => platform?.LobbyId ?? string.Empty;
+        
         public bool HasPendingJoin => pendingJoin != null;
         public bool OverlayOpen => platforms.OverlayOpen;
         public bool Connected => State == SessionState.Connected;
+        
         public bool CursorFree
         {
             get => context.InputBlocked;
@@ -65,6 +72,7 @@ namespace ArtDock.Networking
         public int PlayerCount => manager && manager.IsServer
             ? manager.ConnectedClientsIds.Count : World ? World.Players.Count : State == SessionState.Connected ? 1 : 0;
 
+        /// <summary> Initializes session dependencies and subscribes to scene, network and platform events </summary>
         public SessionService(NetworkManager manager, NetworkContext context, PlatformService platforms, GameSettings settings)
         {
             this.manager = manager;
@@ -75,17 +83,29 @@ namespace ArtDock.Networking
             Message = context.Text?[TextKeys.ChooseMode] ?? string.Empty;
             
             approval = new SessionApproval(context, settings);
-            scenes = new NetworkWorld.SessionSceneFlow(manager, context, settings);
+            scenes = new SessionSceneFlow(manager, context, settings);
             scenes.Changed += OnSceneChanged;
             scenes.Failed += Stop;
             Capacity = settings.MaxPlayers;
 
+            ConfigureNetwork();
+            
+            BindEvents();
+        }
+
+        /// <summary> Applies approval, scene management and timeout settings before starting the transport </summary>
+        private void ConfigureNetwork()
+        {
             manager.NetworkConfig.ConnectionApproval = true;
             manager.NetworkConfig.EnableSceneManagement = true;
             manager.NetworkConfig.TickRate = (uint)settings.TickRate;
             manager.NetworkConfig.ClientConnectionBufferTimeout = Mathf.CeilToInt(settings.ConnectionTimeout);
             manager.NetworkConfig.LoadSceneTimeOut = Mathf.CeilToInt(settings.SceneLoadTimeout);
-            
+        }
+
+        /// <summary> Connects network lifecycle and platform events to the session coordinator </summary>
+        private void BindEvents()
+        {
             manager.ConnectionApprovalCallback += approval.Approve;
             manager.OnClientConnectedCallback += OnConnected;
             manager.OnClientDisconnectCallback += OnDisconnected;
@@ -97,6 +117,7 @@ namespace ArtDock.Networking
             platforms.ConnectionLost += OnConnectionLost;
         }
 
+        /// <summary> Cancels pending work, removes subscriptions and shuts down the current connection </summary>
         public void Dispose()
         {
             if (disposed) return;
@@ -126,8 +147,12 @@ namespace ArtDock.Networking
             approval.Clear();
         }
 
+        /// <summary> Starts a host attempt with the requested title, capacity and visibility </summary>
         public Task<bool> Host(string title, int capacity, bool isPrivate) => Start(true, title, capacity, isPrivate);
+        /// <summary> Starts a client attempt using the selected connection platform </summary>
         public Task<bool> Join(string address) => Start(false, address, settings.MaxPlayers, false);
+        
+        /// <summary> Requests an arena load when the host and player roster are ready </summary>
         public void StartGame()
         {
             if (CanStartGame) scenes.StartGame();
@@ -138,8 +163,10 @@ namespace ArtDock.Networking
             if (CanInvite && platform is ILobbyPlatform lobby) lobby.InviteFriends();
         }
 
+        /// <summary> Disconnects another client at the host request </summary>
         public void Kick(ulong client)
         {
+            // The host can kick only another connected player
             if (State != SessionState.Connected || !IsHost || client == manager.LocalClientId ||
                 !manager.ConnectedClients.ContainsKey(client)) return;
 
@@ -157,134 +184,7 @@ namespace ArtDock.Networking
 
         private void OnSceneChanged() => Changed?.Invoke();
 
-        private async Task<bool> Start(bool host, string address, int capacity, bool isPrivate)
-        {
-            if (disposed || State != SessionState.Offline || manager.ShutdownInProgress || manager.IsListening)
-                return false;
-
-            var current = BeginAttempt(host, address, capacity);
-            IsPrivate = isPrivate;
-            var token = current.Token;
-            Changed?.Invoke();
-
-            try
-            {
-                var ready = await PreparePlatform(current, host, address, isPrivate);
-                return ValidatePreparation(current, token, ready) && StartNetwork(current, host);
-            }
-            catch (Exception exception)
-            {
-                HandleStartFailure(current, exception);
-                return false;
-            }
-        }
-
-        private SessionAttempt BeginAttempt(bool host, string address, int capacity)
-        {
-            State = SessionState.Preparing;
-            Message = GameConstants.Connecting;
-            Capacity = Mathf.Clamp(capacity, 2, settings.MaxPlayers);
-            Title = string.IsNullOrWhiteSpace(address) || !host ? GameConstants.GameName : address.Trim();
-            
-            if (Title.Length > settings.MaxNameLength) Title = Title[..settings.MaxNameLength];
-            return attempt = new SessionAttempt(settings.ConnectionTimeout);
-        }
-
-        private Task<bool> PreparePlatform(SessionAttempt current, bool host, string address, bool isPrivate)
-        {
-            platform = platforms.For(Mode);
-            return current.Prepare(platform, host, Title, Capacity, isPrivate, address);
-        }
-
-        private bool ValidatePreparation(SessionAttempt current, CancellationToken token, bool ready)
-        {
-            if (!IsCurrent(current)) return false;
-            
-            token.ThrowIfCancellationRequested();
-            if (ready) return true;
-            
-            Stop(platform.Error);
-            return false;
-        }
-
-        private bool StartNetwork(SessionAttempt current, bool host)
-        {
-            if (!approval.TryCreatePayload(platform, out var payload, out var error))
-            {
-                Stop(error);
-                return false;
-            }
-            
-            approval.Begin(Capacity);
-            manager.NetworkConfig.ConnectionData = payload;
-            State = SessionState.Connecting;
-            
-            current.BeginConnection();
-            var started = host ? manager.StartHost() : manager.StartClient();
-            
-            if (!started)
-            {
-                Stop(GameErrors.TransportStartFailed);
-                return false;
-            }
-            if (host) scenes.SpawnWorld(Capacity);
-            
-            Changed?.Invoke();
-            return true;
-        }
-
-        private void HandleStartFailure(SessionAttempt current, Exception exception)
-        {
-            if (!IsCurrent(current)) return;
-            
-            if (exception is OperationCanceledException)
-            {
-                Stop(GameErrors.ConnectionTimedOut);
-                return;
-            }
-            
-            Stop(exception.Message);
-            Debug.LogException(exception);
-        }
-
-        private bool IsCurrent(SessionAttempt current)
-            => !disposed && attempt == current && State != SessionState.Stopping;
-
-        private void OnConnected(ulong client)
-        {
-            if (client == manager.LocalClientId && State == SessionState.Connecting)
-            {
-                attempt?.Cancel();
-                State = SessionState.Connected;
-                Message = IsHost ? GameConstants.Hosting : GameConstants.Connected;
-            }
-            Changed?.Invoke();
-        }
-
-        private void OnDisconnected(ulong client)
-        {
-            if (manager.IsServer)
-            {
-                approval.Remove(client);
-            }
-            if (State != SessionState.Stopping && State != SessionState.Offline &&
-                (client == manager.LocalClientId || !manager.IsServer && client == NetworkManager.ServerClientId))
-            {
-                var reason = manager.DisconnectReason;
-                if (string.IsNullOrWhiteSpace(reason) || reason.StartsWith(GameConstants.TransportDisconnectPrefix, StringComparison.Ordinal))
-                    reason = State == SessionState.Connecting ? GameErrors.ConnectionTimedOutOrRejected : GameErrors.HostConnectionLost;
-                Stop(reason);
-            }
-            Changed?.Invoke();
-        }
-
-        private void OnNetworkStopped(bool wasHost)
-        {
-            if (State != SessionState.Offline && State != SessionState.Stopping)
-                Stop(GameErrors.SessionEnded);
-        }
-
-        private void OnTransportFailure() => Stop(GameErrors.TransportFailed);
+        /// <summary> Queues an external invitation and stops the current session before joining </summary>
         private void OnJoinRequested(ConnectionMode mode, string address)
         {
             if (disposed || string.IsNullOrWhiteSpace(address)) return;
@@ -295,6 +195,7 @@ namespace ArtDock.Networking
             if (State != SessionState.Offline) Stop(GameConstants.Disconnected);
         }
 
+        /// <summary> Starts a queued invitation only after shutdown completes and the menu is ready </summary>
         private void JoinPendingLobby()
         {
             if (State != SessionState.Offline || pendingJoin == null || !scenes.MenuReady) return;
@@ -305,12 +206,7 @@ namespace ArtDock.Networking
             _ = Join(address);
         }
 
-        private void OnConnectionLost(ConnectionMode mode, string reason)
-        {
-            if (platform != null && platform.Mode == mode && State != SessionState.Offline)
-                Stop(reason);
-        }
-
+        /// <summary> Closes admission and the lobby before shutting down the network transport </summary>
         public void Stop(string reason = "")
         {
             if (disposed || State == SessionState.Stopping || State == SessionState.Offline)
@@ -329,10 +225,13 @@ namespace ArtDock.Networking
             Changed?.Invoke();
         }
 
+        /// <summary> Updates platform events, connection deadlines, presence and deferred shutdown work </summary>
         public void Tick()
         {
             if (disposed) return;
             platforms.Tick();
+            
+            // Use separate deadlines for platform preparation and scene synchronization
             if (State == SessionState.Preparing && attempt.PreparationTimedOut ||
                 State == SessionState.Connecting && (scenes.Synchronizing ? scenes.SynchronizationTimedOut : attempt.ConnectionTimedOut))
                 Stop(GameErrors.ConnectionTimedOut);
@@ -347,6 +246,7 @@ namespace ArtDock.Networking
             JoinPendingLobby();
         }
 
+        /// <summary> Waits for transport and preparation cleanup before leaving the platform and resetting state </summary>
         private void TryFinishStop()
         {
             if (manager.ShutdownInProgress || manager.IsListening ||
@@ -364,166 +264,6 @@ namespace ArtDock.Networking
             Changed?.Invoke();
         }
 
-        private class SessionApproval
-        {
-            [Serializable]
-            private class Handshake
-            {
-                public string version;
-                public string id;
-                public string name;
-            }
-
-            private static readonly UTF8Encoding Encoding = new(false, true);
-            private readonly NetworkContext context;
-            private readonly GameSettings settings;
-            private ApprovalRegistry registry;
-            private bool accepting;
-
-            public SessionApproval(NetworkContext context, GameSettings settings)
-            {
-                this.context = context;
-                this.settings = settings;
-            }
-
-            public void Begin(int capacity)
-            {
-                registry = new ApprovalRegistry(capacity, settings.ProtocolVersion, settings.MaxIdentityLength);
-                context.Clear();
-                accepting = true;
-            }
-
-            public bool TryCreatePayload(IConnectionPlatform platform, out byte[] payload, out string error)
-            {
-                payload = null;
-                error = "";
-                
-                var hello = new Handshake { version = settings.ProtocolVersion, id = platform.PlayerId, name = platform.PlayerName };
-                if (!ValidName(hello.name) || string.IsNullOrWhiteSpace(hello.id) || hello.id.Length > settings.MaxIdentityLength)
-                {
-                    error = GameErrors.InvalidPlayerIdentityOrName;
-                    return false;
-                }
-                
-                payload = Encoding.GetBytes(JsonUtility.ToJson(hello));
-                if (payload.Length > settings.MaxPayloadBytes)
-                {
-                    error = GameErrors.PayloadTooLarge;
-                    return false;
-                }
-                return true;
-            }
-
-            public void Approve(NetworkManager.ConnectionApprovalRequest request, NetworkManager.ConnectionApprovalResponse response)
-            {
-                response.Pending = false;
-                response.Approved = false;
-                response.CreatePlayerObject = false;
-                response.Reason = GameErrors.InvalidPayload;
-                
-                if (!accepting || registry == null || request.Payload == null ||
-                    request.Payload.Length == 0 || request.Payload.Length > settings.MaxPayloadBytes) return;
-                
-                if (context.World && context.World.Phase.Value == SessionPhase.Loading)
-                {
-                    response.Reason = GameConstants.SessionLoading;
-                    return;
-                }
-                
-                try
-                {
-                    var hello = JsonUtility.FromJson<Handshake>(Encoding.GetString(request.Payload));
-                    if (hello == null || !ValidName(hello.name)) return;
-                    
-                    var result = registry.TryReserveSlot(request.ClientNetworkId, hello.id, hello.version);
-                    response.Reason = RejectionReason(result);
-                    response.Approved = result == ApprovalResult.Approved;
-                    response.CreatePlayerObject = response.Approved;
-                    if (response.Approved)
-                    {
-                        context.SetName(request.ClientNetworkId, hello.name);
-                        response.Position = context.SpawnPositionFor(request.ClientNetworkId);
-                        response.Rotation = Quaternion.identity;
-                    }
-                }
-                catch (ArgumentException)
-                {
-                    response.Reason = GameErrors.InvalidPayload;
-                }
-            }
-
-            public void StopAccepting() => accepting = false;
-
-            public void Remove(ulong client)
-            {
-                registry?.Remove(client);
-                context.Remove(client);
-            }
-
-            public void Clear()
-            {
-                accepting = false;
-                registry = null;
-                context.Clear();
-            }
-
-            private bool ValidName(string name)
-            {
-                if (string.IsNullOrWhiteSpace(name) || name.Length > settings.MaxNameLength)
-                    return false;
-                
-                foreach (var character in name)
-                {
-                    if (char.IsControl(character))
-                        return false;
-                }
-                return Encoding.GetByteCount(name) <= FixedString128Bytes.UTF8MaxLengthInBytes;
-            }
-
-            private static string RejectionReason(ApprovalResult result)
-            {
-                return result switch
-                {
-                    ApprovalResult.Approved => string.Empty,
-                    ApprovalResult.VersionMismatch => GameErrors.VersionMismatch,
-                    ApprovalResult.InvalidIdentity => GameErrors.InvalidIdentity,
-                    ApprovalResult.DuplicateIdentity => GameErrors.DuplicateIdentity,
-                    ApprovalResult.SessionFull => GameConstants.SessionFull,
-                    _ => GameErrors.ConnectionRejected
-                };
-            }
-        }
-
-        private class SessionAttempt : IDisposable
-        {
-            private readonly CancellationTokenSource cancellation = new();
-            private readonly float timeout;
-            private Task<bool> preparation;
-            private float deadline;
-
-            public CancellationToken Token => cancellation.Token;
-            public bool PreparationTimedOut => cancellation.IsCancellationRequested;
-            public bool ConnectionTimedOut => Time.realtimeSinceStartup > deadline;
-            public bool PreparationCompleted => preparation == null || preparation.IsCompleted;
-
-            public SessionAttempt(float timeout)
-            {
-                this.timeout = timeout;
-                cancellation.CancelAfter(TimeSpan.FromSeconds(timeout));
-            }
-
-            public Task<bool> Prepare(IConnectionPlatform platform, bool host, string title, int capacity, bool isPrivate, string address)
-            {
-                preparation = host
-                    ? platform.PrepareHost(title, capacity, isPrivate, Token)
-                    : platform.PrepareJoin(address, Token);
-                return preparation;
-            }
-
-            public void BeginConnection() => deadline = Time.realtimeSinceStartup + timeout;
-            public void Cancel() => cancellation.Cancel();
-            public void Dispose() => cancellation.Dispose();
-        }
     }
 
 }

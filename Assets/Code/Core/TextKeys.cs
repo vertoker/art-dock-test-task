@@ -1,5 +1,6 @@
 namespace ArtDock.Core
 {
+    /// <summary> Keys for interface labels, interaction hints and diagnostic messages </summary>
     public static class TextKeys
     {
         public const string GameTitle = "GameTitle";
