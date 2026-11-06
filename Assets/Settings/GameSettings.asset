@@ -90,7 +90,7 @@ MonoBehaviour:
     FullscreenOnStart: 1
     AuthorUrl: https://www.linkedin.com/in/vertoker
   world:
-    PyramidOrigin: {x: 2, y: 0, z: 5}
+    PyramidOrigin: {x: 2, y: 0, z: 10}
     PyramidRows: 7
     PyramidSpacing: 0.65
     PyramidGroundGap: 0.01

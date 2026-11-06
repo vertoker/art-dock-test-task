@@ -239,7 +239,7 @@ namespace ArtDock.Runtime
             if (!bound) return;
 
             var playing = Playing;
-            if (playing && !wasPlaying) SetCursor(!Application.isFocused || session.OverlayOpen);
+            if (playing && !wasPlaying) SetCursor(session.OverlayOpen);
             if (!playing && wasPlaying) SetCursor(true);
             wasPlaying = playing;
             HandleKeyboard(playing);
@@ -263,7 +263,6 @@ namespace ArtDock.Runtime
             }
 
             var keyboard = Keyboard.current;
-            if (playing && !Application.isFocused && !session.OverlayOpen) SetCursor(true);
             if (keyboard == null || !Application.isFocused || session.OverlayOpen)
             {
                 Show("players-panel", false);

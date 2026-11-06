@@ -12,10 +12,10 @@ namespace ArtDock.Runtime
     public class ProjectScope : LifetimeScope
     {
         [SerializeField] private GameSettings settings;
+        [SerializeField] private GameTextSettings textSettings;
         [SerializeField] private NetworkManager manager;
         [SerializeField] private NetworkContext context;
         [SerializeField] private SessionView view;
-        [SerializeField] private GameTextSettings textSettings;
 
         protected override void Awake()
         {
@@ -26,17 +26,17 @@ namespace ArtDock.Runtime
         protected override void Configure(IContainerBuilder builder)
         {
             if (!settings) throw new NullReferenceException(string.Format(GameErrors.MissingReference, nameof(settings)));
+            if (!textSettings) throw new NullReferenceException(string.Format(GameErrors.MissingReference, nameof(textSettings)));
             if (!manager) throw new NullReferenceException(string.Format(GameErrors.MissingReference, nameof(manager)));
             if (!context) throw new NullReferenceException(string.Format(GameErrors.MissingReference, nameof(context)));
             if (!view) throw new NullReferenceException(string.Format(GameErrors.MissingReference, nameof(view)));
-            if (!textSettings) throw new NullReferenceException(string.Format(GameErrors.MissingReference, nameof(textSettings)));
 
             context.Text = textSettings;
             
             builder.RegisterInstance(settings);
+            builder.RegisterInstance<IGameText>(textSettings);
             builder.RegisterInstance(manager);
             builder.RegisterInstance(context);
-            builder.RegisterInstance<IGameText>(textSettings);
             
             builder.Register<LaunchOptions>(Lifetime.Singleton);
             builder.Register<LanPlatform>(Lifetime.Singleton).As<IConnectionPlatform>();

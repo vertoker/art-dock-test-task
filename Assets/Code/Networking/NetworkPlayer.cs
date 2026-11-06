@@ -97,7 +97,7 @@ namespace ArtDock.Networking
             var mouse = Mouse.current;
             var wasLocked = Cursor.lockState == CursorLockMode.Locked;
 
-            if (context.InputBlocked || context.Session.OverlayOpen || keyboard != null && keyboard.tabKey.isPressed)
+            if (context.InputBlocked || context.Session.OverlayOpen)
             {
                 localControl.Tick(false);
                 return;
@@ -249,12 +249,6 @@ namespace ArtDock.Networking
             if (!CanAct || !validation.TryAim(direction, Time.unscaledTime)) return;
 
             ReplicatedAim.Value = validation.AimDirection;
-        }
-
-        private void OnApplicationFocus(bool focused)
-        {
-            if (!focused && IsOwner)
-                SetCursor(false);
         }
 
         private static void SetCursor(bool locked)

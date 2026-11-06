@@ -59,7 +59,7 @@ namespace ArtDock.Networking
         [Serializable]
         public sealed class WorldConfiguration
         {
-            public Vector3 PyramidOrigin = new(2, 0, 5);
+            public Vector3 PyramidOrigin = new(2, 0, 10);
             [Range(0, 8)] public int PyramidRows = 7;
             [Min(0.1f)] public float PyramidSpacing = 0.65f;
             [Min(0)] public float PyramidGroundGap = 0.01f;

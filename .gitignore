@@ -14,7 +14,6 @@
 /[Ll]ogs/
 /[Uu]ser[Ss]ettings/
 *.log
-/Tools/__pycache__/
 
 # Memory Profiler generated files
 # MemoryCaptures can get excessive in size
@@ -64,8 +63,6 @@ ExportedObj/
 *.mdb.meta
 
 # Unity3D generated file on crash reports
-/.superpowers/
-/Builds/
 sysinfo.txt
 
 # Mono auto generated files
