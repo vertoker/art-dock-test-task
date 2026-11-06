@@ -1,4 +1,5 @@
 using System;
+using ArtDock.Core;
 
 namespace ArtDock.Networking
 {
@@ -9,6 +10,8 @@ namespace ArtDock.Networking
         public ushort Port { get; }
         public bool Host { get; }
         public string JoinAddress { get; }
+        public ConnectionMode Mode { get; }
+        public bool IsPrivate { get; }
 
         public LaunchOptions(GameSettings settings)
         {
@@ -17,7 +20,13 @@ namespace ArtDock.Networking
             Profile = Argument(args, "--profile", "default");
             PlayerName = Argument(args, "--name", $"Player {Profile}").Trim();
             Host = Array.IndexOf(args, "--host") >= 0;
-            JoinAddress = Argument(args, "--join", string.Empty);
+            var lobby = Argument(args, GameConstants.SteamConnectArgument, string.Empty);
+            JoinAddress = string.IsNullOrEmpty(lobby) ? Argument(args, "--join", string.Empty) : lobby;
+            Mode = !string.IsNullOrEmpty(lobby) || Array.IndexOf(args, "--steam") >= 0 ||
+                string.Equals(Argument(args, "--mode", string.Empty), GameConstants.SteamMode, StringComparison.OrdinalIgnoreCase)
+                ? ConnectionMode.Steam : ConnectionMode.Lan;
+            IsPrivate = Array.IndexOf(args, "--private") >= 0;
+
 
             var portSrc = Argument(args, "--port", string.Empty);
             Port = ushort.TryParse(portSrc, out var port) && port != 0 ? port : settings.Port;
@@ -26,9 +35,12 @@ namespace ArtDock.Networking
         private static string Argument(string[] args, string key, string fallback)
         {
             var index = Array.IndexOf(args, key);
-            var isArgument = !args[index + 1].StartsWith("--", StringComparison.Ordinal);
+            if (index < 0 || index + 1 >= args.Length) return fallback;
+
+            var value = args[index + 1];
+            var isArgument = !value.StartsWith("--", StringComparison.Ordinal) && !value.StartsWith("+", StringComparison.Ordinal);
             
-            return index >= 0 && index + 1 < args.Length && isArgument ? args[index + 1] : fallback;
+            return isArgument ? value : fallback;
         }
     }
 }

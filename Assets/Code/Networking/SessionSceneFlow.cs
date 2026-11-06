@@ -27,6 +27,7 @@ namespace ArtDock.Networking
         public bool Synchronizing { get; private set; }
         public bool SynchronizationTimedOut => Time.realtimeSinceStartup > synchronizationDeadline;
         public bool Loading => Synchronizing || world && world.Phase.Value == SessionPhase.Loading;
+        public bool MenuReady => SceneManager.GetActiveScene().name == GameConstants.MenuScene;
         public bool CanStart => !stopping && manager.IsServer && world && world.Phase.Value == SessionPhase.Lobby &&
             manager.PendingClients.Count == 0 && world.Players.Count == manager.ConnectedClientsIds.Count;
 

@@ -1,5 +1,6 @@
 using ArtDock.Core;
 using ArtDock.Networking;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UIElements;
 using VContainer;
@@ -13,6 +14,12 @@ namespace ArtDock.Runtime
         private GameSettings settings;
         private TextField title;
         private TextField address;
+        private DropdownField mode;
+        private Toggle privateLobby;
+        private TextField lobbyId;
+        private Button invite;
+        private string lanAddress;
+        private string steamAddress = string.Empty;
         private SliderInt capacity;
         private Button host;
         private Button join;
@@ -52,6 +59,10 @@ namespace ArtDock.Runtime
             
             title = root.Q<TextField>("title");
             address = root.Q<TextField>("address");
+            mode = root.Q<DropdownField>("connection-mode");
+            privateLobby = root.Q<Toggle>("private-lobby");
+            lobbyId = root.Q<TextField>("lobby-id");
+            invite = root.Q<Button>("invite");
             capacity = root.Q<SliderInt>("capacity");
             host = root.Q<Button>("host");
             join = root.Q<Button>("join");
@@ -66,7 +77,9 @@ namespace ArtDock.Runtime
             title.maxLength = settings.MaxNameLength;
             title.value = GameConstants.GameName;
             address.maxLength = 64;
-            address.value = $"{GameConstants.LoopbackAddress}:{settings.Port}";
+            lanAddress = $"{GameConstants.LoopbackAddress}:{settings.Port}";
+            mode.choices = new List<string> { GameConstants.LanMode, GameConstants.SteamMode };
+            ApplyMode();
             capacity.highValue = settings.MaxPlayers;
             capacity.value = settings.MaxPlayers;
             
@@ -74,20 +87,50 @@ namespace ArtDock.Runtime
             join.clicked += OnJoin;
             leave.clicked += OnLeave;
             startGame.clicked += OnStartGame;
+            invite.clicked += OnInvite;
+            mode.RegisterValueChangedCallback(OnModeChanged);
             session.Changed += Refresh;
             
             bound = true;
             Refresh();
         }
 
-        private void OnHost() => _ = session.Host(title.value, capacity.value, false);
+        private void OnHost() => _ = session.Host(title.value, capacity.value, session.Mode == ConnectionMode.Steam && privateLobby.value);
         private void OnJoin() => _ = session.Join(address.value);
         private void OnLeave() => session.Stop(GameConstants.Disconnected);
         private void OnStartGame() => session.StartGame();
+        private void OnInvite() => session.InviteFriends();
+
+        private void OnModeChanged(ChangeEvent<string> change)
+        {
+            if (session.Mode == ConnectionMode.Steam) steamAddress = address.value;
+            else lanAddress = address.value;
+
+            session.Mode = mode.index == 1 ? ConnectionMode.Steam : ConnectionMode.Lan;
+            ApplyMode();
+            Refresh();
+        }
+
+        private void ApplyMode()
+        {
+            var steam = session.Mode == ConnectionMode.Steam;
+            mode.SetValueWithoutNotify(steam ? GameConstants.SteamMode : GameConstants.LanMode);
+            address.label = steam ? GameConstants.SteamLobbyId : GameConstants.HostAddress;
+            address.SetValueWithoutNotify(steam ? steamAddress : lanAddress);
+            privateLobby.style.display = steam ? DisplayStyle.Flex : DisplayStyle.None;
+        }
 
         private void Refresh()
         {
             var offline = session.State == SessionState.Offline;
+            if (mode.index != (int)session.Mode) ApplyMode();
+
+            mode.SetEnabled(offline);
+            privateLobby.SetEnabled(offline);
+            lobbyId.style.display = session.Mode == ConnectionMode.Steam ? DisplayStyle.Flex : DisplayStyle.None;
+            lobbyId.SetValueWithoutNotify(session.LobbyId);
+            invite.style.display = session.Mode == ConnectionMode.Steam ? DisplayStyle.Flex : DisplayStyle.None;
+            invite.SetEnabled(session.CanInvite);
             
             host.SetEnabled(offline);
             join.SetEnabled(offline);
@@ -133,6 +176,8 @@ namespace ArtDock.Runtime
             join.clicked -= OnJoin;
             leave.clicked -= OnLeave;
             startGame.clicked -= OnStartGame;
+            invite.clicked -= OnInvite;
+            mode.UnregisterValueChangedCallback(OnModeChanged);
         }
     }
 }

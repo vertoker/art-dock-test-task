@@ -29,12 +29,17 @@ namespace ArtDock.Networking
         private SessionAttempt attempt;
         private bool disposed;
         private int sessionCapacity;
+        private string pendingJoin;
+        private ConnectionMode pendingJoinMode;
 
         public event Action Changed;
         public ConnectionMode Mode { get; set; } = ConnectionMode.Lan;
         public SessionState State { get; private set; }
         public string Message { get; private set; } = "Ready";
         public string Title { get; private set; } = GameConstants.GameName;
+        public string LobbyId => platform?.LobbyId ?? string.Empty;
+        public bool HasPendingJoin => pendingJoin != null;
+        public bool CanInvite => State == SessionState.Connected && !Loading && platform is ILobbyPlatform lobby && lobby.CanInvite;
         
         public int Capacity
         {
@@ -48,7 +53,7 @@ namespace ArtDock.Networking
         public bool IsHost => manager && manager.IsHost;
         public bool Busy => State is SessionState.Preparing or SessionState.Connecting or SessionState.Stopping;
         public int PlayerCount => manager && manager.IsServer
-            ? manager.ConnectedClientsIds.Count : State == SessionState.Connected ? 1 : 0;
+            ? manager.ConnectedClientsIds.Count : World ? World.Players.Count : State == SessionState.Connected ? 1 : 0;
 
         public SessionService(NetworkManager manager, NetworkContext context, PlatformService platforms, GameSettings settings)
         {
@@ -89,6 +94,7 @@ namespace ArtDock.Networking
             scenes.Changed -= OnSceneChanged;
             scenes.Failed -= Stop;
             scenes.Dispose();
+            CloseLobby();
             attempt?.Cancel();
             attempt?.Dispose();
             
@@ -114,6 +120,16 @@ namespace ArtDock.Networking
         public void StartGame()
         {
             if (CanStartGame) scenes.StartGame();
+        }
+
+        public void InviteFriends()
+        {
+            if (CanInvite && platform is ILobbyPlatform lobby) lobby.InviteFriends();
+        }
+
+        private void CloseLobby()
+        {
+            if (platform is ILobbyPlatform lobby) lobby.CloseLobby();
         }
 
         private void OnSceneChanged() => Changed?.Invoke();
@@ -245,10 +261,24 @@ namespace ArtDock.Networking
         }
 
         private void OnTransportFailure() => Stop(GameErrors.TransportFailed);
-        private void OnJoinRequested(string address)
+        private void OnJoinRequested(ConnectionMode mode, string address)
         {
-            if (!disposed && State == SessionState.Offline)
-                Join(address);
+            if (disposed || string.IsNullOrWhiteSpace(address)) return;
+            if (State == SessionState.Connected && platform?.Mode == mode && LobbyId == address) return;
+
+            pendingJoin = address;
+            pendingJoinMode = mode;
+            if (State != SessionState.Offline) Stop(GameConstants.Disconnected);
+        }
+
+        private void JoinPendingLobby()
+        {
+            if (State != SessionState.Offline || pendingJoin == null || !scenes.MenuReady) return;
+
+            var address = pendingJoin;
+            Mode = pendingJoinMode;
+            pendingJoin = null;
+            _ = Join(address);
         }
 
         private void OnConnectionLost(ConnectionMode mode, string reason)
@@ -267,6 +297,8 @@ namespace ArtDock.Networking
             approval.StopAccepting();
             attempt?.Cancel();
             Message = reason ?? string.Empty;
+
+            CloseLobby();
             
             if (manager.IsListening || manager.IsClient || manager.IsServer)
                 manager.Shutdown();
@@ -287,6 +319,8 @@ namespace ArtDock.Networking
                 platform?.UpdatePresence(World && World.Phase.Value == SessionPhase.Playing,
                     PlayerCount, Capacity, !Loading && PlayerCount < Capacity);
             }
+
+            JoinPendingLobby();
         }
 
         private void TryFinishStop()

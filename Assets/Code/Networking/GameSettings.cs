@@ -20,6 +20,7 @@ namespace ArtDock.Networking
         [Space]
         [SerializeField] private PlayerConfiguration player = new();
         [SerializeField] private ItemConfiguration items = new();
+        [SerializeField] private SteamConfiguration steam = new();
 
         public int MaxPlayers => maxPlayers;
         public int TickRate => tickRate;
@@ -34,6 +35,15 @@ namespace ArtDock.Networking
         public int MaxIdentityLength => maxIdentityLength;
         public PlayerConfiguration Player => player;
         public ItemConfiguration Items => items;
+        public SteamConfiguration Steam => steam;
+
+        [Serializable]
+        public sealed class SteamConfiguration
+        {
+            public uint AppId = 480;
+            [Min(0.1f)] public float PresenceInterval = 1;
+            [Min(1)] public float RetryInterval = 5;
+        }
 
         [Serializable]
         public sealed class ItemConfiguration

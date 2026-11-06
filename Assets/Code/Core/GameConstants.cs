@@ -20,5 +20,14 @@ namespace ArtDock.Core
         public const string SessionLoading = "Session is loading";
         public const string Disconnected = "Disconnected";
         public const string SessionFull = "Session is full";
+
+        public const string LanMode = "LAN";
+        public const string SteamMode = "Steam";
+        public const string HostAddress = "Host address";
+        public const string SteamLobbyId = "Steam lobby ID";
+        public const string SteamConnectArgument = "+connect_lobby";
+        public const string SteamPlayer = "Steam Player";
+        public const string SteamLobbyStatus = "In lobby";
+        public const string SteamGameStatus = "Playing {0}/{1}";
     }
 }

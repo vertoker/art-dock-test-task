@@ -35,6 +35,7 @@ namespace ArtDock.Runtime
             
             builder.Register<LaunchOptions>(Lifetime.Singleton);
             builder.Register<LanPlatform>(Lifetime.Singleton).As<IConnectionPlatform>();
+            builder.Register<SteamPlatform>(Lifetime.Singleton).As<IConnectionPlatform>();
             builder.Register<PlatformService>(Lifetime.Singleton);
             builder.Register<SessionService>(Lifetime.Singleton);
             

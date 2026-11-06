@@ -7,8 +7,9 @@ namespace ArtDock.Networking
     public class PlatformService : IDisposable
     {
         private readonly Dictionary<ConnectionMode, IConnectionPlatform> platforms = new();
+        private readonly Dictionary<ConnectionMode, Action<string>> joinHandlers = new();
         
-        public event Action<string> JoinRequested;
+        public event Action<ConnectionMode, string> JoinRequested;
         public event Action<ConnectionMode, string> ConnectionLost;
 
         public PlatformService(IEnumerable<IConnectionPlatform> platforms)
@@ -16,7 +17,9 @@ namespace ArtDock.Networking
             foreach (var platform in platforms)
             {
                 this.platforms.Add(platform.Mode, platform);
-                platform.JoinRequested += OnJoinRequested;
+                Action<string> join = address => JoinRequested?.Invoke(platform.Mode, address);
+                joinHandlers.Add(platform.Mode, join);
+                platform.JoinRequested += join;
                 platform.ConnectionLost += OnConnectionLost;
             }
         }
@@ -25,7 +28,7 @@ namespace ArtDock.Networking
         {
             foreach (var platform in platforms.Values)
             {
-                platform.JoinRequested -= OnJoinRequested;
+                platform.JoinRequested -= joinHandlers[platform.Mode];
                 platform.ConnectionLost -= OnConnectionLost;
             }
         }
@@ -42,7 +45,6 @@ namespace ArtDock.Networking
                 platform.Tick();
         }
 
-        private void OnJoinRequested(string address) => JoinRequested?.Invoke(address);
         private void OnConnectionLost(ConnectionMode mode, string reason) => ConnectionLost?.Invoke(mode, reason);
     }
 }

@@ -56,3 +56,7 @@ MonoBehaviour:
     SpawnCooldown: 0.5
     MaxVisualOffset: 0.3
     VisualSharpness: 24
+  steam:
+    AppId: 480
+    PresenceInterval: 1
+    RetryInterval: 5

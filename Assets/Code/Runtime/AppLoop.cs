@@ -31,9 +31,12 @@ namespace ArtDock.Runtime
             session.Tick();
             if (launchHandled || menuLoad is not { isDone: true }) return;
             launchHandled = true;
+
+            if (session.State != SessionState.Offline || session.HasPendingJoin) return;
+            session.Mode = options.Mode;
             
             if (options.Host)
-                session.Host(GameConstants.GameName, settings.MaxPlayers, false);
+                session.Host(GameConstants.GameName, settings.MaxPlayers, options.IsPrivate);
             else if (!string.IsNullOrWhiteSpace(options.JoinAddress))
                 session.Join(options.JoinAddress);
         }

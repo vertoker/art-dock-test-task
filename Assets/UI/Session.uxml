@@ -4,13 +4,17 @@
         <ui:VisualElement class="session-panel">
             <ui:Label name="game-name" class="heading" />
             <ui:VisualElement name="connection">
+                <ui:DropdownField name="connection-mode" label="Connection" />
                 <ui:TextField name="title" label="Session name" />
                 <ui:SliderInt name="capacity" label="Players" low-value="2" high-value="4" value="4" show-input-field="true" />
+                <ui:Toggle name="private-lobby" label="Private lobby" />
                 <ui:Button name="host" text="Host" />
                 <ui:TextField name="address" label="Host address" value="127.0.0.1:7777" />
                 <ui:Button name="join" text="Join" />
             </ui:VisualElement>
             <ui:VisualElement name="lobby">
+                <ui:TextField name="lobby-id" label="Lobby ID" is-read-only="true" />
+                <ui:Button name="invite" text="Invite friends" />
                 <ui:Label text="Players" />
                 <ui:VisualElement name="players" />
                 <ui:Button name="start-game" text="Start game" />

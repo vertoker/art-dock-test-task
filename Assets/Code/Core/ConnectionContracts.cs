@@ -28,4 +28,11 @@ namespace ArtDock.Core
         public void UpdatePresence(bool inGame, int players, int capacity, bool acceptingPlayers);
         public void Leave();
     }
+
+    public interface ILobbyPlatform
+    {
+        public bool CanInvite { get; }
+        public void InviteFriends();
+        public void CloseLobby();
+    }
 }

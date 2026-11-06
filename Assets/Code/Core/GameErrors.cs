@@ -26,5 +26,16 @@ namespace ArtDock.Core
         public const string TransportStartFailed = "Unable to start the network transport";
         public const string ConnectionTimedOutOrRejected = "Connection timed out or was rejected";
         public const string HostConnectionLost = "Connection to the host was lost";
+
+        public const string SteamUnavailable = "Steam is unavailable: {0}";
+        public const string SteamInitializationFailed = "Start Steam and sign in before connecting";
+        public const string SteamLobbyIdRequired = "Enter a valid Steam lobby ID";
+        public const string SteamLobbyCreationFailed = "Unable to create a Steam lobby";
+        public const string SteamLobbyUnavailable = "Unable to join the Steam lobby";
+        public const string SteamLobbyIncompatible = "The Steam lobby belongs to another game or version, or its host has left";
+        public const string SteamLobbyConfigurationFailed = "Unable to configure the Steam lobby";
+        public const string SteamLobbyTimedOut = "Steam lobby request timed out";
+        public const string SteamLobbyPending = "The previous Steam lobby request is still finishing";
+        public const string SteamConnectionLost = "Connection to Steam was lost";
     }
 }
