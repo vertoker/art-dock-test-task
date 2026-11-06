@@ -82,7 +82,12 @@ namespace ArtDock.Networking
                 response.Reason = RejectionReason(result);
                 response.Approved = result == ApprovalResult.Approved;
                 response.CreatePlayerObject = response.Approved;
-                if (response.Approved) context.SetName(request.ClientNetworkId, hello.name);
+                if (response.Approved)
+                {
+                    context.SetName(request.ClientNetworkId, hello.name);
+                    response.Position = context.SpawnPositionFor(request.ClientNetworkId);
+                    response.Rotation = Quaternion.identity;
+                }
             }
             catch (ArgumentException)
             {

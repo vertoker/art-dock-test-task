@@ -21,3 +21,24 @@ MonoBehaviour:
   maxPayloadBytes: 512
   maxNameLength: 32
   maxIdentityLength: 64
+  player:
+    SpawnOrigin: {x: 0, y: 0.1, z: -5}
+    SpawnSpacing: 2
+    MoveSpeed: 5
+    MouseSensitivity: 0.12
+    PitchLimit: 85
+    JumpSpeed: 6
+    Gravity: 18
+    FallSpeed: 12
+    EyeHeight: 1.6
+    PositionTolerance: 1.5
+    AllowedPositionSpeed: 15
+    BufferedMovementSeconds: 0.5
+    CorrectionInterval: 0.5
+    RespawnCooldown: 1
+    AimSendInterval: 0.1
+    AimReceiveInterval: 0.05
+    AimRefreshInterval: 0.5
+    AimAngleThreshold: 0.25
+    MinimumPosition: {x: -25, y: -8, z: -25}
+    MaximumPosition: {x: 25, y: 20, z: 25}

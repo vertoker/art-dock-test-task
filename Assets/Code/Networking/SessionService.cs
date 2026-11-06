@@ -56,6 +56,7 @@ namespace ArtDock.Networking
             this.platforms = platforms;
             this.settings = settings;
             this.context = context;
+            context.Initialize(settings, this);
             
             approval = new SessionApproval(context, settings);
             scenes = new SessionSceneFlow(manager, context, settings);
